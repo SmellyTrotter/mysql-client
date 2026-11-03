@@ -11,6 +11,11 @@ function requireConn(id: string) {
   return config
 }
 
+/** 把参数拼进 SQL 文本，仅用于日志展示 */
+function withParams(sql: string, params: unknown[]): string {
+  return `${sql}  -- params: ${JSON.stringify(params)}`
+}
+
 /** 包装 handler，把异常转成 { ok: false, error } 返回给渲染层 */
 function handle<TArgs extends unknown[], TResult>(
   channel: string,
@@ -63,7 +68,14 @@ export function registerIpcHandlers(): void {
   handle('meta:tables', (connId: string, schema?: string) => store.listCachedTables(connId, schema))
 
   // ---------- 查询 ----------
-  handle('query:run', (connId: string, sql: string) => cm.runQuery(requireConn(connId), sql))
+  handle('query:run', async (connId: string, sql: string) => {
+    const result = await cm.runQuery(requireConn(connId), sql)
+    // 只记录写操作，SELECT/SHOW 不记
+    if (/^\s*(insert|update|delete|replace|create|alter|drop|truncate|rename)\b/i.test(sql)) {
+      store.insertSqlLog(connId, sql, 'query')
+    }
+    return result
+  })
 
   handle(
     'table:data',
@@ -81,18 +93,27 @@ export function registerIpcHandlers(): void {
 
   handle('table:update', async (connId: string, schema: string, table: string, pk: Record<string, unknown>, changes: Record<string, unknown>) => {
     const { sql, params } = buildUpdate(schema, table, pk, changes)
-    return cm.execute(requireConn(connId), sql, params)
+    const affected = await cm.execute(requireConn(connId), sql, params)
+    store.insertSqlLog(connId, withParams(sql, params), 'grid-update')
+    return affected
   })
 
   handle('table:insert', async (connId: string, schema: string, table: string, values: Record<string, unknown>) => {
     const { sql, params } = buildInsert(schema, table, values)
-    return cm.execute(requireConn(connId), sql, params)
+    const affected = await cm.execute(requireConn(connId), sql, params)
+    store.insertSqlLog(connId, withParams(sql, params), 'grid-insert')
+    return affected
   })
 
   handle('table:delete', async (connId: string, schema: string, table: string, pk: Record<string, unknown>) => {
     const { sql, params } = buildDelete(schema, table, pk)
-    return cm.execute(requireConn(connId), sql, params)
+    const affected = await cm.execute(requireConn(connId), sql, params)
+    store.insertSqlLog(connId, withParams(sql, params), 'grid-delete')
+    return affected
   })
+
+  // ---------- SQL 日志 ----------
+  handle('log:list', (connId: string) => store.listSqlLogs(connId))
 
   // ---------- 标签 ----------
   handle('tag:list', () => store.listTags())

@@ -3,6 +3,7 @@ import {
   ApiOutlined,
   BookOutlined,
   CodeOutlined,
+  FileTextOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
 import { useAppStore } from '../store/appStore'
@@ -16,6 +17,7 @@ export default function Toolbar() {
   const openQuery = useAppStore((s) => s.openQuery)
   const openConnectionDialog = useUiStore((s) => s.openConnectionDialog)
   const setBookmarksOpen = useUiStore((s) => s.setBookmarksOpen)
+  const setSqlLogOpen = useUiStore((s) => s.setSqlLogOpen)
 
   return (
     <Space className="no-drag" size={8}>
@@ -45,6 +47,11 @@ export default function Toolbar() {
       <Button icon={<BookOutlined />} disabled={!activeConnId} onClick={() => setBookmarksOpen(true)}>
         书签
       </Button>
+      <Tooltip title="最近 1 小时的增删改 SQL 记录">
+        <Button icon={<FileTextOutlined />} disabled={!activeConnId} onClick={() => setSqlLogOpen(true)}>
+          SQL 日志
+        </Button>
+      </Tooltip>
     </Space>
   )
 }

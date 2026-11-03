@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import path from 'node:path'
 import { registerIpcHandlers } from './ipc'
 import { closeAllPools } from './db/connectionManager'
+import { cleanupSqlLogs } from './db/store'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -29,6 +30,8 @@ function createWindow(): void {
 app.whenReady().then(() => {
   registerIpcHandlers()
   createWindow()
+  // SQL 日志每小时清理一次
+  setInterval(cleanupSqlLogs, 60 * 60 * 1000).unref()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

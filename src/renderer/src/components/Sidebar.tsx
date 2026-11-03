@@ -53,41 +53,56 @@ export default function Sidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemas, tableNodesBySchema, search, filterTagIds, tableTags])
 
+  /** 单张表（或分表子表）的右键菜单 */
+  function tableMenu(schema: string, table: string, tagsTarget?: string) {
+    return {
+      items: [
+        { key: 'open', label: '打开表' },
+        { key: 'query', label: '对此表新建查询' },
+        { key: 'ddl', label: '查看 DDL' },
+        { key: 'tags', label: '管理标签' },
+        { key: 'bookmark', label: '收藏此表' }
+      ],
+      onClick: ({ key, domEvent }: { key: string; domEvent: React.SyntheticEvent }) => {
+        domEvent.stopPropagation()
+        if (key === 'open') openTable(schema, table)
+        if (key === 'query') openQuery(schema, `SELECT * FROM \`${schema}\`.\`${table}\` LIMIT 100;`)
+        if (key === 'ddl') openDdl(schema, table)
+        if (key === 'tags') openTagManager(schema, tagsTarget ?? table)
+        if (key === 'bookmark' && activeConnId) {
+          void api.bookmarks
+            .create({ connId: activeConnId, type: 'table', name: `${schema}.${table}`, content: `${schema}.${table}` })
+            .then(() => reloadBookmarks())
+            .then(() => message.success('已加入书签'))
+        }
+      }
+    }
+  }
+
   function buildTableNode(schema: string, node: TableNode): TreeDataNode {
     const logical = node.logical
     const tagList = tableTags[`${schema}.${nodeName(node)}`] ?? []
     const title = (
       <Dropdown
         trigger={['contextMenu']}
-        menu={{
-          items: logical
-            ? [
-                { key: 'open-first', label: '打开第一张分表' },
-                { key: 'ddl', label: '查看 DDL' },
-                { key: 'tags', label: '管理标签' }
-              ]
-            : [
-                { key: 'open', label: '打开表' },
-                { key: 'query', label: '对此表新建查询' },
-                { key: 'ddl', label: '查看 DDL' },
-                { key: 'tags', label: '管理标签' },
-                { key: 'bookmark', label: '收藏此表' }
-              ],
-          onClick: ({ key, domEvent }) => {
-            domEvent.stopPropagation()
-            const firstTable = node.tables[0].name
-            if (key === 'open' || key === 'open-first') openTable(schema, firstTable)
-            if (key === 'query') openQuery(schema, `SELECT * FROM \`${schema}\`.\`${firstTable}\` LIMIT 100;`)
-            if (key === 'ddl') openDdl(schema, firstTable)
-            if (key === 'tags') openTagManager(schema, nodeName(node))
-            if (key === 'bookmark' && activeConnId) {
-              void api.bookmarks
-                .create({ connId: activeConnId, type: 'table', name: `${schema}.${firstTable}`, content: `${schema}.${firstTable}` })
-                .then(() => reloadBookmarks())
-                .then(() => message.success('已加入书签'))
-            }
-          }
-        }}
+        menu={
+          logical
+            ? {
+                items: [
+                  { key: 'open-first', label: '打开第一张分表' },
+                  { key: 'ddl', label: '查看 DDL' },
+                  { key: 'tags', label: '管理标签（整组生效）' }
+                ],
+                onClick: ({ key, domEvent }: { key: string; domEvent: React.SyntheticEvent }) => {
+                  domEvent.stopPropagation()
+                  const firstTable = node.tables[0].name
+                  if (key === 'open-first') openTable(schema, firstTable)
+                  if (key === 'ddl') openDdl(schema, firstTable)
+                  if (key === 'tags') openTagManager(schema, nodeName(node))
+                }
+              }
+            : tableMenu(schema, node.tables[0].name)
+        }
       >
         <span className="tree-node-title">
           <Tooltip title={nodeName(node)} mouseEnterDelay={0.6}>
@@ -112,11 +127,13 @@ export default function Sidebar() {
             key: `table:${schema}.${t.name}`,
             icon: <TableOutlined />,
             title: (
-              <Tooltip title={t.name} mouseEnterDelay={0.6}>
-                <span className="tree-node-name" onDoubleClick={() => openTable(schema, t.name)}>
-                  {t.name}
+              <Dropdown trigger={['contextMenu']} menu={tableMenu(schema, t.name)}>
+                <span className="tree-node-title" onDoubleClick={() => openTable(schema, t.name)}>
+                  <Tooltip title={t.name} mouseEnterDelay={0.6}>
+                    <span className="tree-node-name">{t.name}</span>
+                  </Tooltip>
                 </span>
-              </Tooltip>
+              </Dropdown>
             )
           }))
         : undefined
@@ -129,11 +146,19 @@ export default function Sidebar() {
         <Space direction="vertical" style={{ width: '100%' }} size={8}>
           <Space.Compact block>
             <Select
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 0 }}
               placeholder="选择连接"
               value={activeConnId}
               onChange={(id) => void selectConnection(id)}
-              options={connections.map((c) => ({ value: c.id, label: `${c.name} (${c.host}:${c.port})` }))}
+              options={connections.map((c) => ({ value: c.id, label: c.name, host: c.host, port: c.port }))}
+              optionRender={(opt) => (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span>{opt.data.label}</span>
+                  <span style={{ color: '#999', fontSize: 12 }}>
+                    {opt.data.host}:{opt.data.port}
+                  </span>
+                </div>
+              )}
             />
             <Tooltip title="编辑连接（名称/主机/密码等）">
               <Button

@@ -89,6 +89,15 @@ export interface TableRef {
   table: string
 }
 
+export interface SqlLogEntry {
+  id: number
+  connId: string
+  sql: string
+  /** grid-insert / grid-update / grid-delete / query */
+  source: string
+  createdAt: number
+}
+
 export interface ApiResult<T> {
   ok: boolean
   data?: T

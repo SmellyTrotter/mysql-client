@@ -7,6 +7,7 @@ import TabsView from './components/TabsView'
 import ConnectionDialog from './components/ConnectionDialog'
 import TagManager from './components/TagManager'
 import BookmarksDrawer from './components/BookmarksDrawer'
+import SqlLogDrawer from './components/SqlLogDrawer'
 
 export default function App() {
   const init = useAppStore((s) => s.init)
@@ -33,6 +34,7 @@ export default function App() {
       <ConnectionDialog />
       <TagManager />
       <BookmarksDrawer />
+      <SqlLogDrawer />
     </Layout>
     </AntApp>
   )

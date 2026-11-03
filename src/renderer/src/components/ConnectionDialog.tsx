@@ -1,9 +1,17 @@
-import { useEffect } from 'react'
 import { Form, Input, InputNumber, Modal, Button, Space, App as AntApp } from 'antd'
 import type { ConnectionInput } from '../../../shared/types'
 import { api } from '../api'
 import { useAppStore } from '../store/appStore'
 import { useUiStore } from '../store/uiStore'
+
+const DEFAULT_VALUES: ConnectionInput = {
+  name: '',
+  host: '127.0.0.1',
+  port: 3306,
+  user: 'root',
+  password: '',
+  database: ''
+}
 
 export default function ConnectionDialog() {
   const { message } = AntApp.useApp()
@@ -13,15 +21,18 @@ export default function ConnectionDialog() {
   const saveConnection = useAppStore((s) => s.saveConnection)
   const [form] = Form.useForm<ConnectionInput>()
 
-  useEffect(() => {
-    if (!open) return
-    const editing = editId ? connections.find((c) => c.id === editId) : undefined
-    form.setFieldsValue(
-      editing
-        ? { name: editing.name, host: editing.host, port: editing.port, user: editing.user, database: editing.database, password: '' }
-        : { name: '', host: '127.0.0.1', port: 3306, user: 'root', password: '', database: '' }
-    )
-  }, [open, editId, connections, form])
+  const editing = editId ? connections.find((c) => c.id === editId) : undefined
+  // 用 initialValues 初始化 + key 强制重挂载，避免 setFieldsValue 在未挂载表单上丢失
+  const initialValues: ConnectionInput = editing
+    ? {
+        name: editing.name,
+        host: editing.host,
+        port: editing.port,
+        user: editing.user,
+        database: editing.database,
+        password: ''
+      }
+    : DEFAULT_VALUES
 
   const handleTest = async () => {
     const values = await form.validateFields()
@@ -60,7 +71,13 @@ export default function ConnectionDialog() {
         </Space>
       }
     >
-      <Form form={form} layout="vertical" preserve={false}>
+      <Form
+        key={editId ?? 'new'}
+        form={form}
+        layout="vertical"
+        preserve={false}
+        initialValues={initialValues}
+      >
         <Form.Item name="name" label="连接名" rules={[{ required: true, message: '请输入连接名' }]}>
           <Input placeholder="例如：本地开发库" />
         </Form.Item>

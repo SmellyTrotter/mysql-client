@@ -3,12 +3,16 @@ import {
   App as AntApp,
   Alert,
   Button,
+  Drawer,
+  Dropdown,
   Form,
   Input,
   Modal,
   Space,
+  Switch,
   Table,
-  Tooltip
+  Tooltip,
+  Typography
 } from 'antd'
 import type { TableProps } from 'antd'
 import {
@@ -20,6 +24,8 @@ import {
 import type { ColumnInfo, SortSpec, TableDataResult } from '../../../shared/types'
 import { api } from '../api'
 import { useAppStore, type TabItem } from '../store/appStore'
+
+import { parseTimestamp, prettyJson } from '../../../shared/format'
 
 function formatCell(value: unknown): string | null {
   if (value === null || value === undefined) return null
@@ -41,6 +47,9 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [insertOpen, setInsertOpen] = useState(false)
   const [insertForm] = Form.useForm()
+  const [inspectRow, setInspectRow] = useState<Record<string, unknown> | null>(null)
+  const [jsonFormat, setJsonFormat] = useState(true)
+  const [wordWrap, setWordWrap] = useState(true)
 
   const { connId, schema, table } = tab
   const pkColumns = useMemo(
@@ -157,7 +166,8 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
             />
           )
         }
-        return (
+        const ts = text ? parseTimestamp(text) : null
+        const cell = (
           <div
             className={`grid-cell ${text === null ? 'grid-cell-null' : ''}`}
             onDoubleClick={() => {
@@ -166,6 +176,32 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
           >
             {text ?? 'NULL'}
           </div>
+        )
+        return (
+          <Dropdown
+            trigger={['contextMenu']}
+            menu={{
+              items: [
+                { key: 'copy', label: '复制值', disabled: text === null },
+                ...(ts ? [{ key: 'ts', label: `复制为时间：${ts}` }] : []),
+                { key: 'detail', label: '查看整行详情' }
+              ],
+              onClick: ({ key, domEvent }) => {
+                domEvent.stopPropagation()
+                if (key === 'copy') {
+                  void navigator.clipboard.writeText(text ?? '')
+                  void message.success('已复制')
+                }
+                if (key === 'ts' && ts) {
+                  void navigator.clipboard.writeText(ts)
+                  void message.success('已复制时间格式')
+                }
+                if (key === 'detail') setInspectRow(row)
+              }
+            }}
+          >
+            {cell}
+          </Dropdown>
         )
       }
     }))
@@ -236,9 +272,76 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
             showTotal: (t) => `共 ${t} 行`
           }}
           onChange={onTableChange}
+          onRow={(row) => ({
+            onClick: (e) => {
+              // 点击复选框 / 编辑输入框时不打开详情
+              if ((e.target as HTMLElement).closest('input, .ant-checkbox-wrapper')) return
+              setInspectRow(row)
+            }
+          })}
           scroll={{ x: 'max-content', y: 'calc(100vh - 240px)' }}
         />
       </div>
+
+      <Drawer
+        title="行详情"
+        open={!!inspectRow}
+        onClose={() => setInspectRow(null)}
+        width={480}
+        extra={
+          <Space size={12}>
+            <Space size={4}>
+              <Switch size="small" checked={jsonFormat} onChange={setJsonFormat} />
+              <Typography.Text style={{ fontSize: 12 }}>JSON 格式化</Typography.Text>
+            </Space>
+            <Space size={4}>
+              <Switch size="small" checked={wordWrap} onChange={setWordWrap} />
+              <Typography.Text style={{ fontSize: 12 }}>自动换行</Typography.Text>
+            </Space>
+          </Space>
+        }
+      >
+        {inspectRow && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(data?.columns ?? []).map((col) => {
+              const raw = formatCell(inspectRow[col.name])
+              const display = raw === null ? null : jsonFormat ? prettyJson(raw) : raw
+              const ts = raw ? parseTimestamp(raw) : null
+              return (
+                <div key={col.name}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {col.name} <span style={{ color: '#ccc' }}>{col.type}</span>
+                  </Typography.Text>
+                  <Typography.Paragraph
+                    copyable={display !== null ? { text: display } : false}
+                    style={{
+                      marginBottom: 0,
+                      marginTop: 2,
+                      fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+                      fontSize: 12,
+                      whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+                      wordBreak: 'break-all',
+                      overflowX: wordWrap ? 'hidden' : 'auto',
+                      background: '#fafafa',
+                      padding: '6px 8px',
+                      borderRadius: 6,
+                      maxHeight: 260,
+                      overflowY: 'auto'
+                    }}
+                  >
+                    {display ?? <span className="grid-cell-null">NULL</span>}
+                  </Typography.Paragraph>
+                  {ts && (
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                      时间戳 → {ts}
+                    </Typography.Text>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Drawer>
 
       <Modal
         title={`向 ${schema}.${table} 插入一行`}

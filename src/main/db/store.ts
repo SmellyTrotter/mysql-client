@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'node:path'
-import type { Bookmark, ConnectionConfig, ConnectionInput, TableInfo, Tag } from '../../shared/types'
+import type { Bookmark, ConnectionConfig, ConnectionInput, SqlLogEntry, TableInfo, Tag } from '../../shared/types'
 
 let db: Database.Database | null = null
 
@@ -56,7 +56,39 @@ function migrate(d: Database.Database): void {
       content TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS sql_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conn_id TEXT NOT NULL,
+      sql_text TEXT NOT NULL,
+      source TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
   `)
+}
+
+// ---------- SQL 执行日志（保留 1 小时） ----------
+
+const SQL_LOG_RETENTION_MS = 60 * 60 * 1000
+
+export function cleanupSqlLogs(): void {
+  getDb()
+    .prepare('DELETE FROM sql_log WHERE created_at < ?')
+    .run(Date.now() - SQL_LOG_RETENTION_MS)
+}
+
+export function insertSqlLog(connId: string, sqlText: string, source: string): void {
+  cleanupSqlLogs()
+  getDb()
+    .prepare('INSERT INTO sql_log (conn_id, sql_text, source, created_at) VALUES (?, ?, ?, ?)')
+    .run(connId, sqlText, source, Date.now())
+}
+
+export function listSqlLogs(connId: string, limit = 200): SqlLogEntry[] {
+  cleanupSqlLogs()
+  const rows = getDb()
+    .prepare('SELECT * FROM sql_log WHERE conn_id = ? ORDER BY id DESC LIMIT ?')
+    .all(connId, limit) as any[]
+  return rows.map((r) => ({ id: r.id, connId: r.conn_id, sql: r.sql_text, source: r.source, createdAt: r.created_at }))
 }
 
 // ---------- connections ----------
