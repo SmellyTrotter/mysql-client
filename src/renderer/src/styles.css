@@ -40,10 +40,25 @@ body {
 
 .app-sider {
   background: #fafafa;
-  border-right: 1px solid #f0f0f0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
+}
+
+/* 侧栏拖拽把手 */
+.sider-resizer {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  border-right: 1px solid #f0f0f0;
+  transition: background 0.15s;
+}
+
+.sider-resizer:hover,
+.sider-resizer:active {
+  background: #91caff;
 }
 
 /* antd Sider 会把 children 再包一层；整条链都走 flex（不用百分比），保证树拿到受限高度 */
@@ -161,6 +176,27 @@ body {
 .grid-cell-null {
   color: #bbb;
   font-style: italic;
+}
+
+/* 按字段类型着色 */
+.grid-cell.cell-num {
+  color: #0958d9;
+}
+
+.grid-cell.cell-dt {
+  color: #531dab;
+}
+
+.grid-cell.cell-json {
+  color: #c41d7f;
+}
+
+.grid-cell.cell-bool {
+  color: #d4380d;
+}
+
+.grid-cell.cell-enum {
+  color: #237804;
 }
 
 .grid-toolbar {

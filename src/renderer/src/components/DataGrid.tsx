@@ -27,6 +27,17 @@ import { useAppStore, type TabItem } from '../store/appStore'
 
 import { parseTimestamp, prettyJson } from '../../../shared/format'
 
+/** 按列类型返回着色 class */
+function cellTypeClass(colType: string): string {
+  const t = colType.toLowerCase()
+  if (/^tinyint\(1\)/.test(t)) return 'cell-bool'
+  if (/int|decimal|double|float|numeric|real|year/.test(t)) return 'cell-num'
+  if (/date|time/.test(t)) return 'cell-dt'
+  if (/json/.test(t)) return 'cell-json'
+  if (/enum|set/.test(t)) return 'cell-enum'
+  return ''
+}
+
 function formatCell(value: unknown): string | null {
   if (value === null || value === undefined) return null
   if (value instanceof Date) return value.toISOString().slice(0, 19).replace('T', ' ')
@@ -218,7 +229,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
         }
         return (
           <div
-            className={`grid-cell ${text === null ? 'grid-cell-null' : ''}`}
+            className={`grid-cell ${text === null ? 'grid-cell-null' : cellTypeClass(col.type)}`}
             onDoubleClick={() => {
               if (!data?.readonly) setEditing({ rowIdx, column: col.name })
             }}

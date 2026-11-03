@@ -4,6 +4,7 @@ import {
   BookOutlined,
   CodeOutlined,
   FileTextOutlined,
+  LayoutOutlined,
   ReloadOutlined,
   SettingOutlined
 } from '@ant-design/icons'
@@ -20,12 +21,17 @@ export default function Toolbar() {
   const setBookmarksOpen = useUiStore((s) => s.setBookmarksOpen)
   const setSqlLogOpen = useUiStore((s) => s.setSqlLogOpen)
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen)
+  const siderVisible = useUiStore((s) => s.siderVisible)
+  const toggleSider = useUiStore((s) => s.toggleSider)
 
   return (
     <Space className="no-drag" size={8}>
-      <Typography.Text strong style={{ marginRight: 12 }}>
+      <Typography.Text strong style={{ marginRight: 4 }}>
         MySQL Client
       </Typography.Text>
+      <Tooltip title={siderVisible ? '隐藏左侧栏' : '显示左侧栏'}>
+        <Button type={siderVisible ? 'default' : 'primary'} icon={<LayoutOutlined />} onClick={toggleSider} />
+      </Tooltip>
       <Button type="primary" icon={<ApiOutlined />} onClick={() => openConnectionDialog()}>
         新建连接
       </Button>
