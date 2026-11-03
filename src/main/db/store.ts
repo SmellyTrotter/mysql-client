@@ -83,11 +83,13 @@ export function insertSqlLog(connId: string, sqlText: string, source: string): v
     .run(connId, sqlText, source, Date.now())
 }
 
-export function listSqlLogs(connId: string, limit = 200): SqlLogEntry[] {
+export function listSqlLogs(connId?: string, limit = 200): SqlLogEntry[] {
   cleanupSqlLogs()
-  const rows = getDb()
-    .prepare('SELECT * FROM sql_log WHERE conn_id = ? ORDER BY id DESC LIMIT ?')
-    .all(connId, limit) as any[]
+  const rows = (
+    connId
+      ? getDb().prepare('SELECT * FROM sql_log WHERE conn_id = ? ORDER BY id DESC LIMIT ?').all(connId, limit)
+      : getDb().prepare('SELECT * FROM sql_log ORDER BY id DESC LIMIT ?').all(limit)
+  ) as any[]
   return rows.map((r) => ({ id: r.id, connId: r.conn_id, sql: r.sql_text, source: r.source, createdAt: r.created_at }))
 }
 

@@ -11,24 +11,24 @@ export default function TagManager() {
   const { message } = AntApp.useApp()
   const target = useUiStore((s) => s.tagTarget)
   const close = useUiStore((s) => s.closeTagManager)
-  const activeConnId = useAppStore((s) => s.activeConnId)
   const tags = useAppStore((s) => s.tags)
-  const tableTags = useAppStore((s) => s.tableTags)
+  const tableTagsByConn = useAppStore((s) => s.tableTagsByConn)
   const reloadTags = useAppStore((s) => s.reloadTags)
   const [newTagName, setNewTagName] = useState('')
 
   const targetKey = target ? `${target.schema}.${target.table}` : null
-  const assignedIds = new Set((targetKey ? (tableTags[targetKey] ?? []) : []).map((t) => t.id))
+  const connTags = target ? (tableTagsByConn[target.connId] ?? {}) : {}
+  const assignedIds = new Set((targetKey ? (connTags[targetKey] ?? []) : []).map((t) => t.id))
 
   useEffect(() => {
     if (target) setNewTagName('')
   }, [target])
 
   async function toggle(tagId: number, checked: boolean) {
-    if (!activeConnId || !target) return
+    if (!target) return
     try {
-      if (checked) await api.tags.assign(activeConnId, target.schema, target.table, tagId)
-      else await api.tags.unassign(activeConnId, target.schema, target.table, tagId)
+      if (checked) await api.tags.assign(target.connId, target.schema, target.table, tagId)
+      else await api.tags.unassign(target.connId, target.schema, target.table, tagId)
       await reloadTags()
     } catch (err) {
       void message.error((err as Error).message)
@@ -43,8 +43,8 @@ export default function TagManager() {
       const tag = await api.tags.create(name, color)
       await reloadTags()
       setNewTagName('')
-      if (activeConnId && target) {
-        await api.tags.assign(activeConnId, target.schema, target.table, tag.id)
+      if (target) {
+        await api.tags.assign(target.connId, target.schema, target.table, tag.id)
         await reloadTags()
       }
     } catch (err) {

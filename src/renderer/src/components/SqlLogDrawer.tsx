@@ -22,19 +22,22 @@ function formatTime(ts: number): string {
 export default function SqlLogDrawer() {
   const open = useUiStore((s) => s.sqlLogOpen)
   const setOpen = useUiStore((s) => s.setSqlLogOpen)
-  const activeConnId = useAppStore((s) => s.activeConnId)
+  const connections = useAppStore((s) => s.connections)
   const [logs, setLogs] = useState<SqlLogEntry[]>([])
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
-    if (!activeConnId) return
     setLoading(true)
     try {
-      setLogs(await api.logs.list(activeConnId))
+      setLogs(await api.logs.list())
     } finally {
       setLoading(false)
     }
-  }, [activeConnId])
+  }, [])
+
+  function connName(connId: string): string {
+    return connections.find((c) => c.id === connId)?.name ?? connId
+  }
 
   useEffect(() => {
     if (open) void load()
@@ -69,6 +72,7 @@ export default function SqlLogDrawer() {
                 <div style={{ width: '100%' }}>
                   <Space size={8} style={{ marginBottom: 4 }}>
                     <AntTag color={source.color}>{source.label}</AntTag>
+                    <AntTag color="blue">{connName(entry.connId)}</AntTag>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                       {formatTime(entry.createdAt)}
                     </Typography.Text>

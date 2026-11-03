@@ -9,18 +9,24 @@ export default function BookmarksDrawer() {
   const open = useUiStore((s) => s.bookmarksOpen)
   const setOpen = useUiStore((s) => s.setBookmarksOpen)
   const bookmarks = useAppStore((s) => s.bookmarks)
+  const connections = useAppStore((s) => s.connections)
+  const schemasByConn = useAppStore((s) => s.schemasByConn)
   const reloadBookmarks = useAppStore((s) => s.reloadBookmarks)
-  const schemas = useAppStore((s) => s.schemas)
   const openQuery = useAppStore((s) => s.openQuery)
   const openTable = useAppStore((s) => s.openTable)
 
-  function useBookmark(type: 'sql' | 'table', content: string) {
+  function connName(connId: string): string {
+    return connections.find((c) => c.id === connId)?.name ?? connId
+  }
+
+  function useBookmark(connId: string, type: 'sql' | 'table', content: string) {
     if (type === 'sql') {
-      openQuery(schemas[0] ?? '', content)
+      const schema = (schemasByConn[connId] ?? [])[0] ?? ''
+      openQuery(connId, schema, content)
     } else {
       // content 形如 schema.table
       const dot = content.indexOf('.')
-      if (dot > 0) openTable(content.slice(0, dot), content.slice(dot + 1))
+      if (dot > 0) openTable(connId, content.slice(0, dot), content.slice(dot + 1))
     }
     setOpen(false)
   }
@@ -38,7 +44,7 @@ export default function BookmarksDrawer() {
           renderItem={(b) => (
             <List.Item
               style={{ cursor: 'pointer' }}
-              onClick={() => useBookmark(b.type, b.content)}
+              onClick={() => useBookmark(b.connId, b.type, b.content)}
               actions={[
                 <a
                   key="del"
@@ -59,6 +65,7 @@ export default function BookmarksDrawer() {
                   <Space size={4}>
                     <Typography.Text style={{ fontSize: 13 }}>{b.name}</Typography.Text>
                     <AntTag style={{ fontSize: 11 }}>{b.type === 'sql' ? 'SQL' : '表'}</AntTag>
+                    <AntTag color="blue" style={{ fontSize: 11 }}>{connName(b.connId)}</AntTag>
                   </Space>
                 }
                 description={

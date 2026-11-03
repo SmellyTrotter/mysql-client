@@ -293,7 +293,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
         >
           删除选中
         </Button>
-        <Button size="small" icon={<CodeOutlined />} onClick={() => table && openDdl(schema, table)}>
+        <Button size="small" icon={<CodeOutlined />} onClick={() => table && openDdl(connId, schema, table)}>
           查看 DDL
         </Button>
         {data?.readonly && (

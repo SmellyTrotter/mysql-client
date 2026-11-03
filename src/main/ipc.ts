@@ -113,7 +113,7 @@ export function registerIpcHandlers(): void {
   })
 
   // ---------- SQL 日志 ----------
-  handle('log:list', (connId: string) => store.listSqlLogs(connId))
+  handle('log:list', (connId?: string) => store.listSqlLogs(connId))
 
   // ---------- 标签 ----------
   handle('tag:list', () => store.listTags())

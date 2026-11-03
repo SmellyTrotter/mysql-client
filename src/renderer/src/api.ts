@@ -23,6 +23,19 @@ function createMockApi(): Api {
     port: 3306,
     user: 'root'
   }
+  const conn2: Omit<ConnectionConfig, 'passwordEnc'> = {
+    id: 'mock-2',
+    name: '测试环境',
+    host: '10.0.0.2',
+    port: 3307,
+    user: 'root'
+  }
+  const schemas2 = ['analytics']
+  const tables2: TableInfo[] = Array.from({ length: 6 }, (_, i) => ({
+    schema: 'analytics',
+    name: `report_daily_${i}`,
+    comment: '日报表'
+  }))
 
   const extraCols = Array.from({ length: 18 }, (_, i) => ({
     name: `field_${i}`,
@@ -56,7 +69,7 @@ function createMockApi(): Api {
 
   return {
     connections: {
-      list: () => Promise.resolve([conn]),
+      list: () => Promise.resolve([conn, conn2]),
       create: () => Promise.resolve('mock-1'),
       update: () => noop(),
       remove: () => noop(),
@@ -64,8 +77,9 @@ function createMockApi(): Api {
     },
     metadata: {
       refresh: () => Promise.resolve(tables.length),
-      schemas: () => Promise.resolve(schemas),
-      tables: (_c: string, s?: string) => Promise.resolve(tables.filter((t) => !s || t.schema === s))
+      schemas: (connId: string) => Promise.resolve(connId === 'mock-2' ? schemas2 : schemas),
+      tables: (connId: string, s?: string) =>
+        Promise.resolve((connId === 'mock-2' ? tables2 : tables).filter((t) => !s || t.schema === s))
     },
     query: {
       run: () => Promise.resolve({ fields: ['id'], rows: [{ id: 1 }], elapsedMs: 1 })

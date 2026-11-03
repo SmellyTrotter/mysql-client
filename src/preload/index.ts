@@ -65,7 +65,7 @@ const api = {
     remove: (id: number) => invoke<void>('bm:delete', id)
   },
   logs: {
-    list: (connId: string) => invoke<SqlLogEntry[]>('log:list', connId)
+    list: (connId?: string) => invoke<SqlLogEntry[]>('log:list', connId)
   },
   events: {
     /** 主进程转发的 ⌘W：关闭当前标签页 */

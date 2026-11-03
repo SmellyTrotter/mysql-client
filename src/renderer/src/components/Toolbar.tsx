@@ -12,8 +12,9 @@ import { useAppStore } from '../store/appStore'
 import { useUiStore } from '../store/uiStore'
 
 export default function Toolbar() {
-  const activeConnId = useAppStore((s) => s.activeConnId)
-  const schemas = useAppStore((s) => s.schemas)
+  const connections = useAppStore((s) => s.connections)
+  const lastUsedConnId = useAppStore((s) => s.lastUsedConnId)
+  const schemasByConn = useAppStore((s) => s.schemasByConn)
   const metadataLoading = useAppStore((s) => s.metadataLoading)
   const refreshMetadata = useAppStore((s) => s.refreshMetadata)
   const openQuery = useAppStore((s) => s.openQuery)
@@ -37,26 +38,30 @@ export default function Toolbar() {
       </Button>
       <Button
         icon={<CodeOutlined />}
-        disabled={!activeConnId || schemas.length === 0}
-        onClick={() => schemas[0] && openQuery(schemas[0])}
+        disabled={connections.length === 0}
+        onClick={() => {
+          const connId = lastUsedConnId ?? connections[0]?.id
+          const schema = connId ? (schemasByConn[connId] ?? [])[0] : undefined
+          if (connId && schema) openQuery(connId, schema)
+        }}
       >
         新建查询
       </Button>
-      <Tooltip title="重新拉取库表元数据">
+      <Tooltip title="重新拉取所有连接的库表元数据">
         <Button
           icon={<ReloadOutlined />}
           loading={metadataLoading}
-          disabled={!activeConnId}
+          disabled={connections.length === 0}
           onClick={() => void refreshMetadata()}
         >
           刷新元数据
         </Button>
       </Tooltip>
-      <Button icon={<BookOutlined />} disabled={!activeConnId} onClick={() => setBookmarksOpen(true)}>
+      <Button icon={<BookOutlined />} disabled={connections.length === 0} onClick={() => setBookmarksOpen(true)}>
         书签
       </Button>
       <Tooltip title="最近 1 小时的增删改 SQL 记录">
-        <Button icon={<FileTextOutlined />} disabled={!activeConnId} onClick={() => setSqlLogOpen(true)}>
+        <Button icon={<FileTextOutlined />} disabled={connections.length === 0} onClick={() => setSqlLogOpen(true)}>
           SQL 日志
         </Button>
       </Tooltip>

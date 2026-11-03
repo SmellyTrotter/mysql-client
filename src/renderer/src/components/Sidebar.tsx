@@ -1,10 +1,9 @@
-import { useMemo } from 'react'
-import { Button, Dropdown, Empty, Input, Select, Space, Tag as AntTag, Tooltip, Tree, App as AntApp } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Dropdown, Empty, Input, Space, Tag as AntTag, Tooltip, Tree, App as AntApp } from 'antd'
 import type { TreeDataNode } from 'antd'
 import {
+  ApiOutlined,
   DatabaseOutlined,
-  DeleteOutlined,
-  EditOutlined,
   FolderOutlined,
   TableOutlined
 } from '@ant-design/icons'
@@ -17,44 +16,30 @@ import { useUiStore } from '../store/uiStore'
 export default function Sidebar() {
   const { message, modal } = AntApp.useApp()
   const connections = useAppStore((s) => s.connections)
-  const activeConnId = useAppStore((s) => s.activeConnId)
-  const schemas = useAppStore((s) => s.schemas)
-  const tableNodesBySchema = useAppStore((s) => s.tableNodesBySchema)
+  const schemasByConn = useAppStore((s) => s.schemasByConn)
+  const tableNodesByConn = useAppStore((s) => s.tableNodesByConn)
   const search = useAppStore((s) => s.search)
   const tags = useAppStore((s) => s.tags)
-  const tableTags = useAppStore((s) => s.tableTags)
+  const tableTagsByConn = useAppStore((s) => s.tableTagsByConn)
   const filterTagIds = useAppStore((s) => s.filterTagIds)
-  const selectConnection = useAppStore((s) => s.selectConnection)
-  const loadSchemaTables = useAppStore((s) => s.loadSchemaTables)
+  const ensureConnectionData = useAppStore((s) => s.ensureConnectionData)
+  const ensureSchemaTables = useAppStore((s) => s.ensureSchemaTables)
   const setSearch = useAppStore((s) => s.setSearch)
   const toggleTagFilter = useAppStore((s) => s.toggleTagFilter)
   const openTable = useAppStore((s) => s.openTable)
   const openDdl = useAppStore((s) => s.openDdl)
   const openQuery = useAppStore((s) => s.openQuery)
+  const refreshMetadata = useAppStore((s) => s.refreshMetadata)
   const removeConnection = useAppStore((s) => s.removeConnection)
+  const touchConnection = useAppStore((s) => s.touchConnection)
   const reloadBookmarks = useAppStore((s) => s.reloadBookmarks)
   const openConnectionDialog = useUiStore((s) => s.openConnectionDialog)
   const openTagManager = useUiStore((s) => s.openTagManager)
 
-  const treeData = useMemo<TreeDataNode[]>(() => {
-    return schemas.map((schema) => {
-      const loaded = schema in tableNodesBySchema
-      const nodes = tableNodesBySchema[schema] ?? []
-      const visible = filterNodes(nodes, search, filterTagIds, tableTags, schema)
-      return {
-        key: `schema:${schema}`,
-        icon: <DatabaseOutlined />,
-        title: schema,
-        // 表未加载时不能给空 children，否则会被当成叶子节点，无法触发展开加载
-        isLeaf: false,
-        children: loaded ? visible.map((node) => buildTableNode(schema, node)) : undefined
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schemas, tableNodesBySchema, search, filterTagIds, tableTags])
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
 
   /** 单张表（或分表子表）的右键菜单 */
-  function tableMenu(schema: string, table: string, tagsTarget?: string) {
+  function tableMenu(connId: string, schema: string, table: string, tagsTarget?: string) {
     return {
       items: [
         { key: 'open', label: '打开表' },
@@ -65,13 +50,13 @@ export default function Sidebar() {
       ],
       onClick: ({ key, domEvent }: { key: string; domEvent: React.SyntheticEvent }) => {
         domEvent.stopPropagation()
-        if (key === 'open') openTable(schema, table)
-        if (key === 'query') openQuery(schema, `SELECT * FROM \`${schema}\`.\`${table}\` LIMIT 100;`)
-        if (key === 'ddl') openDdl(schema, table)
-        if (key === 'tags') openTagManager(schema, tagsTarget ?? table)
-        if (key === 'bookmark' && activeConnId) {
+        if (key === 'open') openTable(connId, schema, table)
+        if (key === 'query') openQuery(connId, schema, `SELECT * FROM \`${schema}\`.\`${table}\` LIMIT 100;`)
+        if (key === 'ddl') openDdl(connId, schema, table)
+        if (key === 'tags') openTagManager(connId, schema, tagsTarget ?? table)
+        if (key === 'bookmark') {
           void api.bookmarks
-            .create({ connId: activeConnId, type: 'table', name: `${schema}.${table}`, content: `${schema}.${table}` })
+            .create({ connId, type: 'table', name: `${schema}.${table}`, content: `${schema}.${table}` })
             .then(() => reloadBookmarks())
             .then(() => message.success('已加入书签'))
         }
@@ -79,9 +64,9 @@ export default function Sidebar() {
     }
   }
 
-  function buildTableNode(schema: string, node: TableNode): TreeDataNode {
+  function buildTableNode(connId: string, schema: string, node: TableNode): TreeDataNode {
     const logical = node.logical
-    const tagList = tableTags[`${schema}.${nodeName(node)}`] ?? []
+    const tagList = tableTagsByConn[connId]?.[`${schema}.${nodeName(node)}`] ?? []
     const title = (
       <Dropdown
         trigger={['contextMenu']}
@@ -96,12 +81,12 @@ export default function Sidebar() {
                 onClick: ({ key, domEvent }: { key: string; domEvent: React.SyntheticEvent }) => {
                   domEvent.stopPropagation()
                   const firstTable = node.tables[0].name
-                  if (key === 'open-first') openTable(schema, firstTable)
-                  if (key === 'ddl') openDdl(schema, firstTable)
-                  if (key === 'tags') openTagManager(schema, nodeName(node))
+                  if (key === 'open-first') openTable(connId, schema, firstTable)
+                  if (key === 'ddl') openDdl(connId, schema, firstTable)
+                  if (key === 'tags') openTagManager(connId, schema, nodeName(node))
                 }
               }
-            : tableMenu(schema, node.tables[0].name)
+            : tableMenu(connId, schema, node.tables[0].name)
         }
       >
         <span className="tree-node-title">
@@ -119,16 +104,16 @@ export default function Sidebar() {
     )
 
     return {
-      key: `table:${schema}.${nodeName(node)}`,
+      key: `table:${connId}:${schema}.${nodeName(node)}`,
       icon: logical ? <FolderOutlined /> : <TableOutlined />,
       title,
       children: logical
         ? node.tables.map((t) => ({
-            key: `table:${schema}.${t.name}`,
+            key: `table:${connId}:${schema}.${t.name}`,
             icon: <TableOutlined />,
             title: (
-              <Dropdown trigger={['contextMenu']} menu={tableMenu(schema, t.name)}>
-                <span className="tree-node-title" onDoubleClick={() => openTable(schema, t.name)}>
+              <Dropdown trigger={['contextMenu']} menu={tableMenu(connId, schema, t.name)}>
+                <span className="tree-node-title" onDoubleClick={() => openTable(connId, schema, t.name)}>
                   <Tooltip title={t.name} mouseEnterDelay={0.6}>
                     <span className="tree-node-name">{t.name}</span>
                   </Tooltip>
@@ -140,66 +125,95 @@ export default function Sidebar() {
     }
   }
 
-  return (
-    <>
-      <div className="sidebar-search">
-        <Space direction="vertical" style={{ width: '100%' }} size={8}>
-          <Space.Compact block>
-            <Select
-              style={{ flex: 1, minWidth: 0 }}
-              placeholder="选择连接"
-              value={activeConnId}
-              onChange={(id) => void selectConnection(id)}
-              options={connections.map((c) => ({ value: c.id, label: c.name, host: c.host, port: c.port }))}
-              optionRender={(opt) => (
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <span>{opt.data.label}</span>
-                  <span style={{ color: '#999', fontSize: 12 }}>
-                    {opt.data.host}:{opt.data.port}
-                  </span>
-                </div>
-              )}
-            />
-            <Tooltip title="编辑连接（名称/主机/密码等）">
-              <Button
-                icon={<EditOutlined />}
-                disabled={!activeConnId}
-                onClick={() => activeConnId && openConnectionDialog(activeConnId)}
-              />
-            </Tooltip>
-            <Tooltip title="删除连接">
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                disabled={!activeConnId}
-                onClick={() => {
-                  if (!activeConnId) return
+  const treeData = useMemo<TreeDataNode[]>(() => {
+    return connections.map((conn) => {
+      const schemas = schemasByConn[conn.id]
+      return {
+        key: `conn:${conn.id}`,
+        icon: <ApiOutlined />,
+        isLeaf: false,
+        title: (
+          <Dropdown
+            trigger={['contextMenu']}
+            menu={{
+              items: [
+                { key: 'query', label: '新建查询' },
+                { key: 'refresh', label: '刷新此连接元数据' },
+                { key: 'edit', label: '编辑连接' },
+                { key: 'delete', label: '删除连接', danger: true }
+              ],
+              onClick: ({ key, domEvent }) => {
+                domEvent.stopPropagation()
+                const firstSchema = (schemasByConn[conn.id] ?? [])[0]
+                if (key === 'query' && firstSchema) openQuery(conn.id, firstSchema)
+                if (key === 'refresh') void refreshMetadata(conn.id)
+                if (key === 'edit') openConnectionDialog(conn.id)
+                if (key === 'delete') {
                   modal.confirm({
-                    title: '删除连接？',
+                    title: `删除连接「${conn.name}」？`,
                     content: '本地缓存的元数据、标签、书签会一并删除。',
                     okButtonProps: { danger: true },
                     onOk: async () => {
-                      await removeConnection(activeConnId)
+                      await removeConnection(conn.id)
                       void message.success('已删除')
                     }
                   })
-                }}
-              />
-            </Tooltip>
-          </Space.Compact>
-          <Input.Search
-            allowClear
-            placeholder="搜索表名 / 注释"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </Space>
+                }
+              }
+            }}
+          >
+            <span className="tree-node-title">
+              <span className="tree-node-name">{conn.name}</span>
+              <span className="shard-count">
+                {conn.host}:{conn.port}
+              </span>
+            </span>
+          </Dropdown>
+        ),
+        children: (schemas ?? []).map((schema) => {
+          const loaded = !!tableNodesByConn[conn.id]?.[schema]
+          const nodes = tableNodesByConn[conn.id]?.[schema] ?? []
+          const visible = filterNodes(nodes, search, filterTagIds, tableTagsByConn[conn.id] ?? {}, schema)
+          return {
+            key: `schema:${conn.id}:${schema}`,
+            icon: <DatabaseOutlined />,
+            title: schema,
+            isLeaf: false,
+            children: loaded ? visible.map((node) => buildTableNode(conn.id, schema, node)) : undefined
+          }
+        })
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connections, schemasByConn, tableNodesByConn, search, filterTagIds, tableTagsByConn])
+
+  // 搜索时自动展开所有连接与库，让匹配结果直接可见
+  useEffect(() => {
+    if (search.trim()) {
+      const keys: React.Key[] = []
+      for (const conn of connections) {
+        keys.push(`conn:${conn.id}`)
+        for (const schema of schemasByConn[conn.id] ?? []) keys.push(`schema:${conn.id}:${schema}`)
+      }
+      setExpandedKeys(keys)
+    }
+  }, [search, connections, schemasByConn])
+
+  return (
+    <>
+      <div className="sidebar-search">
+        <Input.Search
+          allowClear
+          placeholder="搜索所有连接的表名 / 注释"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
       <div className="sidebar-tree">
         {treeData.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="暂无元数据，点击顶部「刷新元数据」"
+            description="先点击顶部「新建连接」，再「刷新元数据」"
             style={{ marginTop: 40 }}
           />
         ) : (
@@ -207,26 +221,34 @@ export default function Sidebar() {
             showIcon
             blockNode
             expandAction="click"
-            defaultExpandAll={false}
+            expandedKeys={expandedKeys}
             treeData={treeData}
             onExpand={(keys, info) => {
+              setExpandedKeys(keys)
               const key = String(info.node.key)
+              if (key.startsWith('conn:')) {
+                touchConnection(key.slice('conn:'.length))
+              }
               if (key.startsWith('schema:')) {
-                const schema = key.slice('schema:'.length)
-                if (!tableNodesBySchema[schema]) void loadSchemaTables(schema)
+                const rest = key.slice('schema:'.length)
+                const sep = rest.indexOf(':')
+                void ensureSchemaTables(rest.slice(0, sep), rest.slice(sep + 1))
               }
             }}
             onDoubleClick={(_e, node) => {
               const key = String(node.key)
               if (key.startsWith('table:')) {
                 const rest = key.slice('table:'.length)
-                const dot = rest.indexOf('.')
-                const schema = rest.slice(0, dot)
-                const table = rest.slice(dot + 1)
-                const nodes = tableNodesBySchema[schema] ?? []
-                const found = nodes.find((n) => nodeName(n) === table)
-                if (found && !found.logical) openTable(schema, table)
-                if (found?.logical) openTable(schema, found.tables[0].name)
+                const sep = rest.indexOf(':')
+                const connId = rest.slice(0, sep)
+                const schemaTable = rest.slice(sep + 1)
+                const dot = schemaTable.indexOf('.')
+                const schema = schemaTable.slice(0, dot)
+                const name = schemaTable.slice(dot + 1)
+                const nodes = tableNodesByConn[connId]?.[schema] ?? []
+                const found = nodes.find((n) => nodeName(n) === name)
+                if (found && !found.logical) openTable(connId, schema, name)
+                if (found?.logical) openTable(connId, schema, found.tables[0].name)
               }
             }}
           />
@@ -234,7 +256,7 @@ export default function Sidebar() {
       </div>
       {tags.length > 0 && (
         <div className="sidebar-tags">
-          <Tooltip title="点击标签过滤表">
+          <Tooltip title="点击标签过滤表（跨所有连接）">
             <Space size={4} wrap>
               {tags.map((t) => {
                 const active = filterTagIds.includes(t.id)
