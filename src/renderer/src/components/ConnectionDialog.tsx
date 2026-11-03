@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Form, Input, InputNumber, Modal, Button, Space, App as AntApp } from 'antd'
 import type { ConnectionInput } from '../../../shared/types'
 import { api } from '../api'
@@ -20,6 +21,7 @@ export default function ConnectionDialog() {
   const connections = useAppStore((s) => s.connections)
   const saveConnection = useAppStore((s) => s.saveConnection)
   const [form] = Form.useForm<ConnectionInput>()
+  const [saving, setSaving] = useState(false)
 
   const editing = editId ? connections.find((c) => c.id === editId) : undefined
   // 用 initialValues 初始化 + key 强制重挂载，避免 setFieldsValue 在未挂载表单上丢失
@@ -45,13 +47,17 @@ export default function ConnectionDialog() {
   }
 
   const handleSave = async () => {
+    if (saving) return
     const values = await form.validateFields()
+    setSaving(true)
     try {
-      await saveConnection(values, editId)
+      await saveConnection({ ...values, name: values.name.trim() }, editId)
       close()
       void message.success('已保存')
     } catch (err) {
       void message.error(`保存失败: ${(err as Error).message}`)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -63,9 +69,9 @@ export default function ConnectionDialog() {
       destroyOnHidden
       footer={
         <Space>
-          <Button onClick={handleTest}>测试连接</Button>
+          <Button onClick={handleTest} disabled={saving}>测试连接</Button>
           <Button onClick={close}>取消</Button>
-          <Button type="primary" onClick={handleSave}>
+          <Button type="primary" loading={saving} onClick={() => void handleSave()}>
             保存
           </Button>
         </Space>

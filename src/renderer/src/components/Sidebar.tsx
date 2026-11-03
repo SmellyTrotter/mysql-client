@@ -163,9 +163,9 @@ export default function Sidebar() {
             }}
           >
             <span className="tree-node-title">
-              <span className="tree-node-name">{conn.name}</span>
+              <span className="tree-node-name">{conn.name || conn.host}</span>
               <span className="shard-count">
-                {conn.host}:{conn.port}
+                {conn.user}@{conn.host}:{conn.port}
               </span>
             </span>
           </Dropdown>
