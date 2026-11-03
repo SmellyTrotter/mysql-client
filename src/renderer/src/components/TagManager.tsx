@@ -18,7 +18,7 @@ export default function TagManager() {
   const [newTagName, setNewTagName] = useState('')
 
   const targetKey = target ? `${target.schema}.${target.table}` : null
-  const assignedIds = new Set((targetKey ? tableTags[targetKey] : []).map((t) => t.id))
+  const assignedIds = new Set((targetKey ? (tableTags[targetKey] ?? []) : []).map((t) => t.id))
 
   useEffect(() => {
     if (target) setNewTagName('')

@@ -90,7 +90,9 @@ export default function Sidebar() {
         }}
       >
         <span className="tree-node-title">
-          <span>{nodeName(node)}</span>
+          <Tooltip title={nodeName(node)} mouseEnterDelay={0.6}>
+            <span className="tree-node-name">{nodeName(node)}</span>
+          </Tooltip>
           {logical && <span className="shard-count">×{node.tables.length}</span>}
           {tagList.map((t) => (
             <AntTag key={t.id} color={t.color} style={{ marginInlineEnd: 0, fontSize: 11, lineHeight: '16px' }}>
@@ -110,12 +112,11 @@ export default function Sidebar() {
             key: `table:${schema}.${t.name}`,
             icon: <TableOutlined />,
             title: (
-              <span
-                className="tree-node-title"
-                onDoubleClick={() => openTable(schema, t.name)}
-              >
-                {t.name}
-              </span>
+              <Tooltip title={t.name} mouseEnterDelay={0.6}>
+                <span className="tree-node-name" onDoubleClick={() => openTable(schema, t.name)}>
+                  {t.name}
+                </span>
+              </Tooltip>
             )
           }))
         : undefined

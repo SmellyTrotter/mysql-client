@@ -33,6 +33,9 @@ interface AppState {
   tabs: TabItem[]
   activeTabKey: string | null
   metadataLoading: boolean
+  /** 数据网格每页行数，持久化到 localStorage */
+  tablePageSize: number
+  setTablePageSize: (n: number) => void
 
   init: () => Promise<void>
   selectConnection: (connId: string) => Promise<void>
@@ -71,6 +74,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   tabs: [],
   activeTabKey: null,
   metadataLoading: false,
+  tablePageSize: Number(localStorage.getItem('mysql-client.pageSize')) || 100,
+  setTablePageSize: (n) => {
+    localStorage.setItem('mysql-client.pageSize', String(n))
+    set({ tablePageSize: n })
+  },
 
   init: async () => {
     const [connections, tags] = await Promise.all([api.connections.list(), api.tags.list()])

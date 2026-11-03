@@ -34,7 +34,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
   const [data, setData] = useState<TableDataResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(100)
+  const [pageSize, setPageSize] = useState(() => useAppStore.getState().tablePageSize)
   const [sort, setSort] = useState<SortSpec | undefined>()
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ rowIdx: number; column: string } | null>(null)
@@ -174,7 +174,9 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
 
   const onTableChange: TableProps<Record<string, unknown>>['onChange'] = (pagination, _filters, sorter) => {
     setPage(pagination.current ?? 1)
-    setPageSize(pagination.pageSize ?? 100)
+    const nextSize = pagination.pageSize ?? 100
+    setPageSize(nextSize)
+    useAppStore.getState().setTablePageSize(nextSize)
     const s = Array.isArray(sorter) ? sorter[0] : sorter
     if (s?.order && s.columnKey) {
       setSort({ column: String(s.columnKey), direction: s.order === 'ascend' ? 'asc' : 'desc' })
