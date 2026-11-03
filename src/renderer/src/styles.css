@@ -26,9 +26,18 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* flex 子项默认 min-height:auto，内容超高时会把布局撑开而非内部滚动 */
+.app-layout-inner,
+.app-sider,
+.app-content {
+  min-height: 0;
+}
+
 .app-sider {
   background: #fafafa;
   border-right: 1px solid #f0f0f0;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* antd Sider 会把 children 再包一层，必须让这一层也成 flex 列，树才能拿到受限高度并滚动 */

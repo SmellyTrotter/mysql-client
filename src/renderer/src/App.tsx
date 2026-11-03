@@ -23,11 +23,11 @@ export default function App() {
       <Layout.Header className="app-header" style={{ background: '#fff' }}>
         <Toolbar />
       </Layout.Header>
-      <Layout>
+      <Layout className="app-layout-inner">
         <Layout.Sider width={300} className="app-sider" theme="light">
           {initialized ? <Sidebar /> : <Spin style={{ margin: '40px auto' }} />}
         </Layout.Sider>
-        <Layout.Content>
+        <Layout.Content className="app-content">
           <TabsView />
         </Layout.Content>
       </Layout>

@@ -4,9 +4,9 @@ import {
   Alert,
   Button,
   Drawer,
-  Dropdown,
   Form,
   Input,
+  Menu,
   Modal,
   Space,
   Table,
@@ -50,6 +50,13 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
   const [inspectRow, setInspectRow] = useState<Record<string, unknown> | null>(null)
   const [drafts, setDrafts] = useState<Record<string, string | null>>({})
   const [saving, setSaving] = useState(false)
+  /** 单元格右键菜单（全表共用一个，避免每格挂 Dropdown 的性能问题） */
+  const [cellMenu, setCellMenu] = useState<{
+    x: number
+    y: number
+    row: Record<string, unknown>
+    text: string | null
+  } | null>(null)
 
   const { connId, schema, table } = tab
   const pkColumns = useMemo(
@@ -209,42 +216,20 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
             />
           )
         }
-        const ts = text ? parseTimestamp(text) : null
-        const cell = (
+        return (
           <div
             className={`grid-cell ${text === null ? 'grid-cell-null' : ''}`}
             onDoubleClick={() => {
               if (!data?.readonly) setEditing({ rowIdx, column: col.name })
             }}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setCellMenu({ x: e.clientX, y: e.clientY, row, text })
+            }}
           >
             {text ?? 'NULL'}
           </div>
-        )
-        return (
-          <Dropdown
-            trigger={['contextMenu']}
-            menu={{
-              items: [
-                { key: 'copy', label: '复制值', disabled: text === null },
-                ...(ts ? [{ key: 'ts', label: `复制为时间：${ts}` }] : []),
-                { key: 'detail', label: '查看整行详情' }
-              ],
-              onClick: ({ key, domEvent }) => {
-                domEvent.stopPropagation()
-                if (key === 'copy') {
-                  void navigator.clipboard.writeText(text ?? '')
-                  void message.success('已复制')
-                }
-                if (key === 'ts' && ts) {
-                  void navigator.clipboard.writeText(ts)
-                  void message.success('已复制时间格式')
-                }
-                if (key === 'detail') openDetail(row)
-              }
-            }}
-          >
-            {cell}
-          </Dropdown>
         )
       }
     }))
@@ -319,6 +304,58 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
           scroll={{ x: 'max-content', y: 'calc(100vh - 240px)' }}
         />
       </div>
+
+      {/* 全表共用的单元格右键菜单 */}
+      {cellMenu && (
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+            onClick={() => setCellMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setCellMenu(null)
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              left: Math.min(cellMenu.x, window.innerWidth - 240),
+              top: Math.min(cellMenu.y, window.innerHeight - 140),
+              zIndex: 1001,
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 6px 16px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.15)',
+              overflow: 'hidden',
+              minWidth: 180
+            }}
+          >
+            <Menu
+              selectable={false}
+              onClick={({ key }) => {
+                const { row, text } = cellMenu
+                const ts = text ? parseTimestamp(text) : null
+                if (key === 'copy' && text !== null) {
+                  void navigator.clipboard.writeText(text)
+                  void message.success('已复制')
+                }
+                if (key === 'ts' && ts) {
+                  void navigator.clipboard.writeText(ts)
+                  void message.success('已复制时间格式')
+                }
+                if (key === 'detail') openDetail(row)
+                setCellMenu(null)
+              }}
+              items={[
+                { key: 'copy', label: '复制值', disabled: cellMenu.text === null },
+                ...(cellMenu.text && parseTimestamp(cellMenu.text)
+                  ? [{ key: 'ts', label: `复制为时间：${parseTimestamp(cellMenu.text)}` }]
+                  : []),
+                { key: 'detail', label: '查看整行详情' }
+              ]}
+            />
+          </div>
+        </>
+      )}
 
       <Drawer
         title={`行详情 · ${schema}.${table}`}

@@ -150,11 +150,14 @@ export async function fetchTableData(
       : ''
 
   const qualified = `${quoteIdent(schema)}.${quoteIdent(table)}`
-  const [rows] = await pool.query(
-    `SELECT * FROM ${qualified} ${orderBy} LIMIT ? OFFSET ?`,
-    [pageSize, (page - 1) * pageSize]
-  )
-  const [countRows] = await pool.query(`SELECT COUNT(*) AS cnt FROM ${qualified}`)
+  // 数据与总数并行查询，缩短打开表的等待
+  const [[rows], [countRows]] = await Promise.all([
+    pool.query(`SELECT * FROM ${qualified} ${orderBy} LIMIT ? OFFSET ?`, [
+      pageSize,
+      (page - 1) * pageSize
+    ]),
+    pool.query(`SELECT COUNT(*) AS cnt FROM ${qualified}`)
+  ])
 
   return {
     columns,
