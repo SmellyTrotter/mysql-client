@@ -27,11 +27,14 @@ export default function App() {
     void init()
   }, [init])
 
+  const siderRef = useRef<HTMLElement>(null)
+
   function startDrag(e: React.MouseEvent) {
     e.preventDefault()
     dragging.current = true
     const startX = e.clientX
     const startWidth = useUiStore.getState().siderWidth
+    let pendingWidth = startWidth
 
     const onMove = (ev: MouseEvent) => {
       if (!dragging.current) return
@@ -41,12 +44,16 @@ export default function App() {
         stopDrag()
         return
       }
-      useUiStore.getState().setSiderWidth(Math.min(SIDER_MAX, Math.max(SIDER_MIN, w)))
+      pendingWidth = Math.min(SIDER_MAX, Math.max(SIDER_MIN, w))
+      // 拖动中只改 DOM，不写 store：避免每像素触发整棵 React 树重渲染导致卡顿
+      if (siderRef.current) siderRef.current.style.width = `${pendingWidth}px`
     }
     const stopDrag = () => {
       dragging.current = false
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', stopDrag)
+      // 松手时一次性提交
+      useUiStore.getState().setSiderWidth(pendingWidth)
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', stopDrag)
@@ -61,7 +68,7 @@ export default function App() {
       <Layout className="app-layout-inner" style={{ flexDirection: 'row' }}>
         {siderVisible && (
           <>
-            <aside className="app-sider" style={{ width: siderWidth, flexShrink: 0 }}>
+            <aside ref={siderRef} className="app-sider" style={{ width: siderWidth, flexShrink: 0 }}>
               {initialized ? <Sidebar /> : <Spin style={{ margin: '40px auto' }} />}
             </aside>
             <div className="sider-resizer" onMouseDown={startDrag} title="拖动调整宽度，拖到最左隐藏" />

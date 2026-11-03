@@ -31,6 +31,19 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/*
+ * 无边框窗口的拖拽区在浏览器层命中，盖在上面的浮层控件（抽屉×、按钮等）
+ * 若落在窗口顶部拖拽带内会被截获点击，必须显式声明 no-drag
+ */
+.ant-drawer,
+.ant-drawer *,
+.ant-modal,
+.ant-modal *,
+.ant-tooltip,
+.ant-tooltip * {
+  -webkit-app-region: no-drag;
+}
+
 /* flex 子项默认 min-height/min-width:auto，内容超尺寸时会把布局撑开而非内部滚动 */
 .app-layout-inner,
 .app-sider,

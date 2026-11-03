@@ -215,27 +215,10 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
       render: (value: unknown, row: Record<string, unknown>, rowIdx: number) => {
         const text = formatCell(value)
         const isEditing = editing?.rowIdx === rowIdx && editing.column === col.name
-        if (isEditing) {
-          return (
-            <Input
-              size="small"
-              autoFocus
-              // 与单元格同字体同字号，避免进入编辑时列宽跳动
-              style={{
-                fontFamily: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
-                fontSize: 12,
-                padding: '0 4px'
-              }}
-              defaultValue={text ?? ''}
-              onBlur={(e) => void saveCell(row, col.name, e.target.value)}
-              onPressEnter={(e) => void saveCell(row, col.name, (e.target as HTMLInputElement).value)}
-              onKeyDown={(e) => e.key === 'Escape' && setEditing(null)}
-            />
-          )
-        }
         return (
           <div
             className={`grid-cell ${text === null ? 'grid-cell-null' : cellTypeClass(col.type)}`}
+            style={{ position: 'relative' }}
             onDoubleClick={() => {
               if (!data?.readonly) setEditing({ rowIdx, column: col.name })
             }}
@@ -245,7 +228,30 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
               setCellMenu({ x: e.clientX, y: e.clientY, row, text })
             }}
           >
+            {/* 底层文字始终渲染以维持列宽，编辑框绝对定位覆盖其上 */}
             {text ?? 'NULL'}
+            {isEditing && (
+              <Input
+                size="small"
+                autoFocus
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  fontFamily: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
+                  fontSize: 12,
+                  padding: '0 4px',
+                  boxSizing: 'border-box',
+                  zIndex: 2
+                }}
+                defaultValue={text ?? ''}
+                onBlur={(e) => void saveCell(row, col.name, e.target.value)}
+                onPressEnter={(e) => void saveCell(row, col.name, (e.target as HTMLInputElement).value)}
+                onKeyDown={(e) => e.key === 'Escape' && setEditing(null)}
+              />
+            )}
           </div>
         )
       }
@@ -326,7 +332,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
       {cellMenu && (
         <>
           <div
-            style={{ position: 'fixed', inset: 0, zIndex: 1000 }}
+            style={{ position: 'fixed', inset: 0, zIndex: 100 }}
             onClick={() => setCellMenu(null)}
             onContextMenu={(e) => {
               e.preventDefault()
@@ -338,7 +344,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
               position: 'fixed',
               left: Math.min(cellMenu.x, window.innerWidth - 240),
               top: Math.min(cellMenu.y, window.innerHeight - 140),
-              zIndex: 1001,
+              zIndex: 101,
               background: '#fff',
               borderRadius: 8,
               boxShadow: '0 6px 16px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.15)',
