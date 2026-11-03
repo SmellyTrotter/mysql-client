@@ -20,6 +20,14 @@ function createWindow(): void {
     }
   })
 
+  // ⌘W 关闭当前标签页而不是窗口
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.meta && !input.shift && !input.alt && !input.control && input.key.toLowerCase() === 'w') {
+      event.preventDefault()
+      win.webContents.send('app:close-active-tab')
+    }
+  })
+
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {

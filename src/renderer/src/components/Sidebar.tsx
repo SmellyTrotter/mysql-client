@@ -206,6 +206,7 @@ export default function Sidebar() {
           <Tree
             showIcon
             blockNode
+            expandAction="click"
             defaultExpandAll={false}
             treeData={treeData}
             onExpand={(keys, info) => {

@@ -29,8 +29,14 @@ body {
 .app-sider {
   background: #fafafa;
   border-right: 1px solid #f0f0f0;
+}
+
+/* antd Sider 会把 children 再包一层，必须让这一层也成 flex 列，树才能拿到受限高度并滚动 */
+.app-sider .ant-layout-sider-children {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 .sidebar-search {
@@ -39,6 +45,7 @@ body {
 
 .sidebar-tree {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 0 8px 8px;
 }

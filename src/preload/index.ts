@@ -66,6 +66,16 @@ const api = {
   },
   logs: {
     list: (connId: string) => invoke<SqlLogEntry[]>('log:list', connId)
+  },
+  events: {
+    /** 主进程转发的 ⌘W：关闭当前标签页 */
+    onCloseActiveTab: (cb: () => void) => {
+      const listener = () => cb()
+      ipcRenderer.on('app:close-active-tab', listener)
+      return () => {
+        ipcRenderer.removeListener('app:close-active-tab', listener)
+      }
+    }
   }
 }
 

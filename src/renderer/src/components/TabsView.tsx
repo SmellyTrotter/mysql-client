@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Empty, Tabs } from 'antd'
+import { api } from '../api'
 import { useAppStore, type TabItem } from '../store/appStore'
 import DataGrid from './DataGrid'
 import SqlQueryView from './SqlQueryView'
@@ -20,6 +22,14 @@ export default function TabsView() {
   const activeTabKey = useAppStore((s) => s.activeTabKey)
   const activateTab = useAppStore((s) => s.activateTab)
   const closeTab = useAppStore((s) => s.closeTab)
+
+  // ⌘W 关闭当前标签页（由主进程转发）
+  useEffect(() => {
+    return api.events.onCloseActiveTab(() => {
+      const { activeTabKey, closeTab } = useAppStore.getState()
+      if (activeTabKey) closeTab(activeTabKey)
+    })
+  }, [])
 
   if (tabs.length === 0) {
     return (

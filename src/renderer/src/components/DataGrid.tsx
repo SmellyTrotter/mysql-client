@@ -9,7 +9,6 @@ import {
   Input,
   Modal,
   Space,
-  Switch,
   Table,
   Tooltip,
   Typography
@@ -18,6 +17,7 @@ import type { TableProps } from 'antd'
 import {
   CodeOutlined,
   DeleteOutlined,
+  ExpandOutlined,
   PlusOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
@@ -48,8 +48,8 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
   const [insertOpen, setInsertOpen] = useState(false)
   const [insertForm] = Form.useForm()
   const [inspectRow, setInspectRow] = useState<Record<string, unknown> | null>(null)
-  const [jsonFormat, setJsonFormat] = useState(true)
-  const [wordWrap, setWordWrap] = useState(true)
+  const [drafts, setDrafts] = useState<Record<string, string | null>>({})
+  const [saving, setSaving] = useState(false)
 
   const { connId, schema, table } = tab
   const pkColumns = useMemo(
@@ -77,6 +77,38 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
 
   function pkValues(row: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(pkColumns.map((c) => [c, row[c]]))
+  }
+
+  /** 打开行详情抽屉，初始化编辑草稿 */
+  function openDetail(row: Record<string, unknown>) {
+    const d: Record<string, string | null> = {}
+    for (const c of data?.columns ?? []) d[c.name] = formatCell(row[c.name])
+    setDrafts(d)
+    setInspectRow(row)
+  }
+
+  const changedFields = useMemo(() => {
+    if (!inspectRow) return []
+    return (data?.columns ?? [])
+      .map((c) => c.name)
+      .filter((name) => drafts[name] !== formatCell(inspectRow[name]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drafts, inspectRow, data])
+
+  async function saveDetail() {
+    if (!table || !inspectRow || changedFields.length === 0) return
+    setSaving(true)
+    try {
+      const changes = Object.fromEntries(changedFields.map((f) => [f, drafts[f]]))
+      await api.table.update(connId, schema, table, pkValues(inspectRow), changes)
+      void message.success(`已保存 ${changedFields.length} 个字段`)
+      setInspectRow(null)
+      void load()
+    } catch (err) {
+      void message.error(`保存失败: ${(err as Error).message}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function saveCell(row: Record<string, unknown>, column: string, raw: string) {
@@ -138,7 +170,18 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
   }
 
   const columns = useMemo(() => {
-    return (data?.columns ?? []).map((col: ColumnInfo) => ({
+    const detailColumn = {
+      title: '',
+      key: '__detail__',
+      width: 40,
+      fixed: 'left' as const,
+      render: (_: unknown, row: Record<string, unknown>) => (
+        <Tooltip title="查看/编辑整行">
+          <Button type="text" size="small" icon={<ExpandOutlined />} onClick={() => openDetail(row)} />
+        </Tooltip>
+      )
+    }
+    const dataColumns = (data?.columns ?? []).map((col: ColumnInfo) => ({
       title: (
         <Tooltip title={`${col.type}${col.comment ? ` · ${col.comment}` : ''}`}>
           <span>
@@ -196,7 +239,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
                   void navigator.clipboard.writeText(ts)
                   void message.success('已复制时间格式')
                 }
-                if (key === 'detail') setInspectRow(row)
+                if (key === 'detail') openDetail(row)
               }
             }}
           >
@@ -205,6 +248,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
         )
       }
     }))
+    return [detailColumn, ...dataColumns]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, editing, sort, pkColumns])
 
@@ -272,65 +316,76 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
             showTotal: (t) => `共 ${t} 行`
           }}
           onChange={onTableChange}
-          onRow={(row) => ({
-            onClick: (e) => {
-              // 点击复选框 / 编辑输入框时不打开详情
-              if ((e.target as HTMLElement).closest('input, .ant-checkbox-wrapper')) return
-              setInspectRow(row)
-            }
-          })}
           scroll={{ x: 'max-content', y: 'calc(100vh - 240px)' }}
         />
       </div>
 
       <Drawer
-        title="行详情"
+        title={`行详情 · ${schema}.${table}`}
         open={!!inspectRow}
         onClose={() => setInspectRow(null)}
         width={480}
-        extra={
-          <Space size={12}>
-            <Space size={4}>
-              <Switch size="small" checked={jsonFormat} onChange={setJsonFormat} />
-              <Typography.Text style={{ fontSize: 12 }}>JSON 格式化</Typography.Text>
-            </Space>
-            <Space size={4}>
-              <Switch size="small" checked={wordWrap} onChange={setWordWrap} />
-              <Typography.Text style={{ fontSize: 12 }}>自动换行</Typography.Text>
-            </Space>
+        footer={
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            {data?.readonly && <Alert type="warning" showIcon message="无主键，只读" style={{ padding: '0 8px', marginRight: 'auto' }} />}
+            <Button onClick={() => setInspectRow(null)}>取消</Button>
+            <Button
+              type="primary"
+              loading={saving}
+              disabled={data?.readonly || changedFields.length === 0}
+              onClick={() => void saveDetail()}
+            >
+              保存修改{changedFields.length > 0 ? `（${changedFields.length}）` : ''}
+            </Button>
           </Space>
         }
       >
         {inspectRow && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {(data?.columns ?? []).map((col) => {
-              const raw = formatCell(inspectRow[col.name])
-              const display = raw === null ? null : jsonFormat ? prettyJson(raw) : raw
-              const ts = raw ? parseTimestamp(raw) : null
+              const value = drafts[col.name]
+              const isNull = value === null
+              const ts = !isNull && value ? parseTimestamp(value) : null
+              const looksJson = !isNull && value ? prettyJson(value) !== value : false
+              const changed = changedFields.includes(col.name)
               return (
                 <div key={col.name}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {col.name} <span style={{ color: '#ccc' }}>{col.type}</span>
-                  </Typography.Text>
-                  <Typography.Paragraph
-                    copyable={display !== null ? { text: display } : false}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {col.name} <span style={{ color: '#ccc' }}>{col.type}</span>
+                    </Typography.Text>
+                    {changed && <Typography.Text style={{ fontSize: 11, color: '#fa8c16' }}>已修改</Typography.Text>}
+                    <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8 }}>
+                      {looksJson && (
+                        <a
+                          style={{ fontSize: 11 }}
+                          onClick={() => setDrafts((d) => ({ ...d, [col.name]: prettyJson(d[col.name] ?? '') }))}
+                        >
+                          格式化 JSON
+                        </a>
+                      )}
+                      {col.nullable && (
+                        <a
+                          style={{ fontSize: 11 }}
+                          onClick={() => setDrafts((d) => ({ ...d, [col.name]: isNull ? '' : null }))}
+                        >
+                          {isNull ? '取消 NULL' : '设为 NULL'}
+                        </a>
+                      )}
+                    </span>
+                  </div>
+                  <Input.TextArea
+                    value={value ?? ''}
+                    disabled={isNull}
+                    placeholder={isNull ? 'NULL' : ''}
+                    autoSize={{ minRows: 1, maxRows: 12 }}
                     style={{
-                      marginBottom: 0,
-                      marginTop: 2,
                       fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
                       fontSize: 12,
-                      whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
-                      wordBreak: 'break-all',
-                      overflowX: wordWrap ? 'hidden' : 'auto',
-                      background: '#fafafa',
-                      padding: '6px 8px',
-                      borderRadius: 6,
-                      maxHeight: 260,
-                      overflowY: 'auto'
+                      background: isNull ? '#f5f5f5' : undefined
                     }}
-                  >
-                    {display ?? <span className="grid-cell-null">NULL</span>}
-                  </Typography.Paragraph>
+                    onChange={(e) => setDrafts((d) => ({ ...d, [col.name]: e.target.value }))}
+                  />
                   {ts && (
                     <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                       时间戳 → {ts}
