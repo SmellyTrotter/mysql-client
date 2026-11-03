@@ -241,15 +241,23 @@ body {
   max-width: 100%;
 }
 
-/* 树节点：长表名单行省略，避免与图标错位换行 */
+/* 树节点：表名占满可用宽度，超出才省略 */
+.sidebar-tree .ant-tree .ant-tree-treenode {
+  display: flex;
+  align-items: center;
+}
+
 .sidebar-tree .ant-tree .ant-tree-node-content-wrapper {
+  flex: 1;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   overflow: hidden;
-  max-width: 100%;
 }
 
 .sidebar-tree .ant-tree .ant-tree-title {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -257,11 +265,17 @@ body {
 
 .tree-node-name {
   display: inline-block;
-  max-width: 180px;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+.tree-node-title .shard-count,
+.tree-node-title .ant-tag {
+  flex-shrink: 0;
 }
 
 .shard-count {
