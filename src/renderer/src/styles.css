@@ -5,6 +5,11 @@ body,
   margin: 0;
 }
 
+/* antd <App> 包装层，高度链的关键一环，缺了它下层 Layout 的 100% 高度全部失效 */
+.ant-app {
+  height: 100%;
+}
+
 body {
   overflow: hidden;
   user-select: none;
@@ -57,9 +62,10 @@ body {
 .sidebar-tree {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: scroll; /* 常驻滚动条轨道，明确可滚动 */
   overflow-x: hidden;
   padding: 0 8px 8px;
+  scrollbar-gutter: stable;
 }
 
 .sidebar-tags {
