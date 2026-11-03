@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Dropdown, Empty, Input, Select, Space, Tag as AntTag, Tooltip, Tree, App as AntApp } from 'antd'
+import { Button, Dropdown, Empty, Input, Select, Space, Tag as AntTag, Tooltip, Tree, App as AntApp } from 'antd'
 import type { TreeDataNode } from 'antd'
 import {
   DatabaseOutlined,
@@ -38,13 +38,16 @@ export default function Sidebar() {
 
   const treeData = useMemo<TreeDataNode[]>(() => {
     return schemas.map((schema) => {
+      const loaded = schema in tableNodesBySchema
       const nodes = tableNodesBySchema[schema] ?? []
       const visible = filterNodes(nodes, search, filterTagIds, tableTags, schema)
       return {
         key: `schema:${schema}`,
         icon: <DatabaseOutlined />,
         title: schema,
-        children: visible.map((node) => buildTableNode(schema, node))
+        // 表未加载时不能给空 children，否则会被当成叶子节点，无法触发展开加载
+        isLeaf: false,
+        children: loaded ? visible.map((node) => buildTableNode(schema, node)) : undefined
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -123,42 +126,41 @@ export default function Sidebar() {
     <>
       <div className="sidebar-search">
         <Space direction="vertical" style={{ width: '100%' }} size={8}>
-          <Select
-            style={{ width: '100%' }}
-            placeholder="选择连接"
-            value={activeConnId}
-            onChange={(id) => void selectConnection(id)}
-            options={connections.map((c) => ({ value: c.id, label: `${c.name} (${c.host}:${c.port})` }))}
-            dropdownRender={(menu) => (
-              <>
-                {menu}
-                <div style={{ padding: 8, borderTop: '1px solid #f0f0f0' }}>
-                  <Space>
-                    <a onClick={() => activeConnId && openConnectionDialog(activeConnId)}>
-                      <EditOutlined /> 编辑
-                    </a>
-                    <a
-                      style={{ color: '#ff4d4f' }}
-                      onClick={() => {
-                        if (!activeConnId) return
-                        modal.confirm({
-                          title: '删除连接？',
-                          content: '本地缓存的元数据、标签、书签会一并删除。',
-                          okButtonProps: { danger: true },
-                          onOk: async () => {
-                            await removeConnection(activeConnId)
-                            void message.success('已删除')
-                          }
-                        })
-                      }}
-                    >
-                      <DeleteOutlined /> 删除
-                    </a>
-                  </Space>
-                </div>
-              </>
-            )}
-          />
+          <Space.Compact block>
+            <Select
+              style={{ flex: 1 }}
+              placeholder="选择连接"
+              value={activeConnId}
+              onChange={(id) => void selectConnection(id)}
+              options={connections.map((c) => ({ value: c.id, label: `${c.name} (${c.host}:${c.port})` }))}
+            />
+            <Tooltip title="编辑连接（名称/主机/密码等）">
+              <Button
+                icon={<EditOutlined />}
+                disabled={!activeConnId}
+                onClick={() => activeConnId && openConnectionDialog(activeConnId)}
+              />
+            </Tooltip>
+            <Tooltip title="删除连接">
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                disabled={!activeConnId}
+                onClick={() => {
+                  if (!activeConnId) return
+                  modal.confirm({
+                    title: '删除连接？',
+                    content: '本地缓存的元数据、标签、书签会一并删除。',
+                    okButtonProps: { danger: true },
+                    onOk: async () => {
+                      await removeConnection(activeConnId)
+                      void message.success('已删除')
+                    }
+                  })
+                }}
+              />
+            </Tooltip>
+          </Space.Compact>
           <Input.Search
             allowClear
             placeholder="搜索表名 / 注释"
