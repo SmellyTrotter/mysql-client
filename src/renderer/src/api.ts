@@ -1,3 +1,93 @@
 import type { Api } from '../../preload/index'
+import type { ConnectionConfig, TableDataResult, TableInfo } from '../../shared/types'
 
-export const api = (window as unknown as { api: Api }).api
+/**
+ * 浏览器调试 Mock：当 window.api 不存在（纯 vite 起渲染层、无 Electron）时，
+ * 提供一份内存假数据，便于在浏览器里直接调 UI。
+ */
+function createMockApi(): Api {
+  const schemas = ['order_db', 'gifshow']
+  const tables: TableInfo[] = [
+    ...Array.from({ length: 8 }, (_, i) => ({ schema: 'order_db', name: `order_${i}`, comment: '订单分表' })),
+    { schema: 'order_db', name: 'order_config', comment: '' },
+    ...Array.from({ length: 120 }, (_, i) => ({
+      schema: 'gifshow',
+      name: `very_long_table_name_for_scroll_testing_purpose_number_${i}`,
+      comment: ''
+    }))
+  ]
+  const conn: Omit<ConnectionConfig, 'passwordEnc'> = {
+    id: 'mock-1',
+    name: '本地 Mock',
+    host: '127.0.0.1',
+    port: 3306,
+    user: 'root'
+  }
+
+  const grid: TableDataResult = {
+    columns: [
+      { name: 'id', type: 'bigint', nullable: false, isPrimary: true, isAutoIncrement: true, defaultValue: null, comment: '' },
+      { name: 'create_time', type: 'bigint', nullable: true, isPrimary: false, isAutoIncrement: false, defaultValue: null, comment: '' },
+      { name: 'payload', type: 'json', nullable: true, isPrimary: false, isAutoIncrement: false, defaultValue: null, comment: '' }
+    ],
+    rows: Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      create_time: 1700000000000 + i * 1000,
+      payload: JSON.stringify({ a: i, b: 'x'.repeat(60) })
+    })),
+    total: 100000,
+    page: 1,
+    pageSize: 100,
+    readonly: false
+  }
+
+  const noop = () => Promise.resolve(undefined)
+
+  return {
+    connections: {
+      list: () => Promise.resolve([conn]),
+      create: () => Promise.resolve('mock-1'),
+      update: () => noop(),
+      remove: () => noop(),
+      test: () => noop()
+    },
+    metadata: {
+      refresh: () => Promise.resolve(tables.length),
+      schemas: () => Promise.resolve(schemas),
+      tables: (_c: string, s?: string) => Promise.resolve(tables.filter((t) => !s || t.schema === s))
+    },
+    query: {
+      run: () => Promise.resolve({ fields: ['id'], rows: [{ id: 1 }], elapsedMs: 1 })
+    },
+    table: {
+      data: () => Promise.resolve(grid),
+      columns: () => Promise.resolve(grid.columns),
+      ddl: () => Promise.resolve('CREATE TABLE `order_0` (\n  `id` bigint NOT NULL AUTO_INCREMENT,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB;'),
+      update: () => Promise.resolve(1),
+      insert: () => Promise.resolve(1),
+      remove: () => Promise.resolve(1)
+    },
+    tags: {
+      list: () => Promise.resolve([{ id: 1, name: '核心表', color: 'purple' }]),
+      create: () => Promise.resolve({ id: 2, name: 'x', color: 'blue' }),
+      remove: () => noop(),
+      assign: () => noop(),
+      unassign: () => noop(),
+      forConn: () => Promise.resolve({})
+    },
+    bookmarks: {
+      list: () => Promise.resolve([]),
+      create: (b: { connId: string; type: 'sql' | 'table'; name: string; content: string }) =>
+        Promise.resolve({ ...b, id: 1, createdAt: Date.now() }),
+      remove: () => noop()
+    },
+    logs: {
+      list: () => Promise.resolve([])
+    },
+    events: {
+      onCloseActiveTab: () => () => undefined
+    }
+  } as unknown as Api
+}
+
+export const api: Api = (window as unknown as { api?: Api }).api ?? createMockApi()

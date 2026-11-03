@@ -5,12 +5,14 @@ interface UiState {
   tagTarget: { schema: string; table: string } | null
   bookmarksOpen: boolean
   sqlLogOpen: boolean
+  settingsOpen: boolean
   openConnectionDialog: (editId?: string) => void
   closeConnectionDialog: () => void
   openTagManager: (schema: string, table: string) => void
   closeTagManager: () => void
   setBookmarksOpen: (open: boolean) => void
   setSqlLogOpen: (open: boolean) => void
+  setSettingsOpen: (open: boolean) => void
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -18,10 +20,12 @@ export const useUiStore = create<UiState>((set) => ({
   tagTarget: null,
   bookmarksOpen: false,
   sqlLogOpen: false,
+  settingsOpen: false,
   openConnectionDialog: (editId) => set({ connectionDialog: { open: true, editId } }),
   closeConnectionDialog: () => set({ connectionDialog: { open: false } }),
   openTagManager: (schema, table) => set({ tagTarget: { schema, table } }),
   closeTagManager: () => set({ tagTarget: null }),
   setBookmarksOpen: (open) => set({ bookmarksOpen: open }),
-  setSqlLogOpen: (open) => set({ sqlLogOpen: open })
+  setSqlLogOpen: (open) => set({ sqlLogOpen: open }),
+  setSettingsOpen: (open) => set({ settingsOpen: open })
 }))

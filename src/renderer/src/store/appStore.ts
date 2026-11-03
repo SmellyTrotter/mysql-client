@@ -1,21 +1,10 @@
 import { create } from 'zustand'
 import type { Bookmark, ConnectionConfig, TableInfo, TableNode, Tag } from '../../../shared/types'
 import { groupTables, nodeName } from '../../../shared/sharding'
+import { evictLru, type TabItem, type TabType } from '../../../shared/tabs'
 import { api } from '../api'
 
-export type TabType = 'table' | 'query' | 'ddl'
-
-export interface TabItem {
-  key: string
-  type: TabType
-  connId: string
-  schema: string
-  /** table / ddl 类型存在 */
-  table?: string
-  title: string
-  /** query 类型：初始 SQL（来自书签） */
-  initialSql?: string
-}
+export type { TabItem, TabType }
 
 interface AppState {
   initialized: boolean
@@ -36,6 +25,9 @@ interface AppState {
   /** 数据网格每页行数，持久化到 localStorage */
   tablePageSize: number
   setTablePageSize: (n: number) => void
+  /** 最大标签页数，超出后自动关闭最久未使用的，持久化 */
+  maxTabs: number
+  setMaxTabs: (n: number) => void
 
   init: () => Promise<void>
   selectConnection: (connId: string) => Promise<void>
@@ -78,6 +70,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTablePageSize: (n) => {
     localStorage.setItem('mysql-client.pageSize', String(n))
     set({ tablePageSize: n })
+  },
+  maxTabs: Number(localStorage.getItem('mysql-client.maxTabs')) || 8,
+  setMaxTabs: (n) => {
+    localStorage.setItem('mysql-client.maxTabs', String(n))
+    set((s) => ({ maxTabs: n, tabs: s.activeTabKey ? evictLru(s.tabs, s.activeTabKey, n) : s.tabs }))
   },
 
   init: async () => {
@@ -135,10 +132,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const key = tabKey('table', connId, schema, table)
     const exists = get().tabs.find((t) => t.key === key)
     if (!exists) {
-      const tab: TabItem = { key, type: 'table', connId, schema, table, title: `${schema}.${table}` }
-      set((s) => ({ tabs: [...s.tabs, tab], activeTabKey: key }))
+      const tab: TabItem = { key, type: 'table', connId, schema, table, title: `${schema}.${table}`, lastActiveAt: Date.now() }
+      set((s) => ({ tabs: evictLru([...s.tabs, tab], key, s.maxTabs), activeTabKey: key }))
     } else {
-      set({ activeTabKey: key })
+      get().activateTab(key)
     }
   },
 
@@ -148,10 +145,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const key = tabKey('ddl', connId, schema, table)
     const exists = get().tabs.find((t) => t.key === key)
     if (!exists) {
-      const tab: TabItem = { key, type: 'ddl', connId, schema, table, title: `DDL ${schema}.${table}` }
-      set((s) => ({ tabs: [...s.tabs, tab], activeTabKey: key }))
+      const tab: TabItem = { key, type: 'ddl', connId, schema, table, title: `DDL ${schema}.${table}`, lastActiveAt: Date.now() }
+      set((s) => ({ tabs: evictLru([...s.tabs, tab], key, s.maxTabs), activeTabKey: key }))
     } else {
-      set({ activeTabKey: key })
+      get().activateTab(key)
     }
   },
 
@@ -159,11 +156,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     const connId = get().activeConnId
     if (!connId) return
     const key = tabKey('query', connId, schema)
-    const tab: TabItem = { key, type: 'query', connId, schema, title: `查询 ${schema}`, initialSql }
-    set((s) => ({ tabs: [...s.tabs, tab], activeTabKey: key }))
+    const tab: TabItem = { key, type: 'query', connId, schema, title: `查询 ${schema}`, initialSql, lastActiveAt: Date.now() }
+    set((s) => ({ tabs: evictLru([...s.tabs, tab], key, s.maxTabs), activeTabKey: key }))
   },
 
-  activateTab: (key) => set({ activeTabKey: key }),
+  activateTab: (key) =>
+    set((s) => ({
+      activeTabKey: key,
+      tabs: s.tabs.map((t) => (t.key === key ? { ...t, lastActiveAt: Date.now() } : t))
+    })),
 
   closeTab: (key) => {
     set((s) => {

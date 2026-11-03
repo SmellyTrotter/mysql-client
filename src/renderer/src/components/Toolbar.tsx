@@ -4,7 +4,8 @@ import {
   BookOutlined,
   CodeOutlined,
   FileTextOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  SettingOutlined
 } from '@ant-design/icons'
 import { useAppStore } from '../store/appStore'
 import { useUiStore } from '../store/uiStore'
@@ -18,6 +19,7 @@ export default function Toolbar() {
   const openConnectionDialog = useUiStore((s) => s.openConnectionDialog)
   const setBookmarksOpen = useUiStore((s) => s.setBookmarksOpen)
   const setSqlLogOpen = useUiStore((s) => s.setSqlLogOpen)
+  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen)
 
   return (
     <Space className="no-drag" size={8}>
@@ -52,6 +54,9 @@ export default function Toolbar() {
           SQL 日志
         </Button>
       </Tooltip>
+      <Button icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)}>
+        设置
+      </Button>
     </Space>
   )
 }

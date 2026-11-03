@@ -1,5 +1,7 @@
-import { useEffect } from 'react'
-import { Empty, Tabs } from 'antd'
+import { useEffect, useMemo } from 'react'
+import { Empty } from 'antd'
+import { CloseOutlined } from '@ant-design/icons'
+import { computeTabLabels } from '../../../shared/tabs'
 import { api } from '../api'
 import { useAppStore, type TabItem } from '../store/appStore'
 import DataGrid from './DataGrid'
@@ -31,6 +33,9 @@ export default function TabsView() {
     })
   }, [])
 
+  // 短名有重复时才显示完整 库.表 前缀，省横向空间
+  const labels = useMemo(() => computeTabLabels(tabs), [tabs])
+
   if (tabs.length === 0) {
     return (
       <Empty
@@ -47,21 +52,36 @@ export default function TabsView() {
   }
 
   return (
-    <Tabs
-      className="tab-content"
-      style={{ height: '100%', padding: '0 8px' }}
-      type="editable-card"
-      hideAdd
-      activeKey={activeTabKey ?? undefined}
-      onChange={activateTab}
-      onEdit={(key, action) => {
-        if (action === 'remove' && typeof key === 'string') closeTab(key)
-      }}
-      items={tabs.map((tab) => ({
-        key: tab.key,
-        label: tab.title,
-        children: <div className="tab-content">{renderTab(tab)}</div>
-      }))}
-    />
+    <div className="tab-content">
+      <div className="tabbar">
+        {tabs.map((tab) => (
+          <div
+            key={tab.key}
+            className={`tab-chip ${tab.key === activeTabKey ? 'active' : ''}`}
+            title={tab.title}
+            onClick={() => activateTab(tab.key)}
+            onAuxClick={(e) => {
+              if (e.button === 1) closeTab(tab.key)
+            }}
+          >
+            <span>{labels.get(tab.key)}</span>
+            <CloseOutlined
+              className="tab-chip-close"
+              onClick={(e) => {
+                e.stopPropagation()
+                closeTab(tab.key)
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="tab-body">
+        {tabs.map((tab) => (
+          <div key={tab.key} className={`tab-pane ${tab.key === activeTabKey ? '' : 'hidden'}`}>
+            {renderTab(tab)}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
