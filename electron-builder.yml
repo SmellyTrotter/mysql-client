@@ -1,0 +1,16 @@
+appId: com.example.mysqlclient
+productName: MySQL Client
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+dmg:
+  artifactName: ${productName}-${version}-mac.${ext}
+asarUnpack:
+  - node_modules/better-sqlite3/**

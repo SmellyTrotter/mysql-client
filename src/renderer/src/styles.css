@@ -1,0 +1,107 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  user-select: none;
+}
+
+.app-header {
+  height: 48px;
+  line-height: 48px;
+  padding: 0 12px 0 88px; /* 给 macOS 红绿灯按钮留位 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+  -webkit-app-region: drag;
+}
+
+.app-header .no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.app-sider {
+  background: #fafafa;
+  border-right: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-search {
+  padding: 8px;
+}
+
+.sidebar-tree {
+  flex: 1;
+  overflow: auto;
+  padding: 0 8px 8px;
+}
+
+.sidebar-tags {
+  padding: 4px 8px 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.tab-content {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tab 标题展示全表名，不截断 */
+.ant-tabs-nav-list .ant-tabs-tab {
+  max-width: none;
+}
+
+.ant-tabs-nav-list .ant-tabs-tab .ant-tabs-tab-btn {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.grid-cell {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.grid-cell-null {
+  color: #bbb;
+  font-style: italic;
+}
+
+.grid-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.editor-container {
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tree-node-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shard-count {
+  color: #999;
+  font-size: 12px;
+}
