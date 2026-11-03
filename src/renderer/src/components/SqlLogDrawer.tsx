@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Drawer, Empty, List, Space, Tag as AntTag, Tooltip, Typography } from 'antd'
+import { Drawer, Empty, List, Space, Tag as AntTag, Tooltip, Typography } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import type { SqlLogEntry } from '../../../shared/types'
 import { api } from '../api'
@@ -56,11 +56,6 @@ export default function SqlLogDrawer() {
       open={open}
       onClose={() => setOpen(false)}
       width={520}
-      footer={
-        <Button block onClick={() => setOpen(false)}>
-          关闭
-        </Button>
-      }
     >
       {logs.length === 0 ? (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无写操作记录" />

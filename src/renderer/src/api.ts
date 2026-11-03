@@ -24,16 +24,27 @@ function createMockApi(): Api {
     user: 'root'
   }
 
+  const extraCols = Array.from({ length: 18 }, (_, i) => ({
+    name: `field_${i}`,
+    type: i % 3 === 0 ? 'datetime' : 'varchar(64)',
+    nullable: true,
+    isPrimary: false,
+    isAutoIncrement: false,
+    defaultValue: null,
+    comment: ''
+  }))
   const grid: TableDataResult = {
     columns: [
       { name: 'id', type: 'bigint', nullable: false, isPrimary: true, isAutoIncrement: true, defaultValue: null, comment: '' },
       { name: 'create_time', type: 'bigint', nullable: true, isPrimary: false, isAutoIncrement: false, defaultValue: null, comment: '' },
-      { name: 'payload', type: 'json', nullable: true, isPrimary: false, isAutoIncrement: false, defaultValue: null, comment: '' }
+      { name: 'payload', type: 'json', nullable: true, isPrimary: false, isAutoIncrement: false, defaultValue: null, comment: '' },
+      ...extraCols
     ],
     rows: Array.from({ length: 100 }, (_, i) => ({
       id: i + 1,
       create_time: 1700000000000 + i * 1000,
-      payload: JSON.stringify({ a: i, b: 'x'.repeat(60) })
+      payload: JSON.stringify({ a: i, b: 'x'.repeat(60) }),
+      ...Object.fromEntries(extraCols.map((c, j) => [c.name, j % 3 === 0 ? new Date(1700000000000) : `value_${i}_${j}_${'y'.repeat(30)}`]))
     })),
     total: 100000,
     page: 1,

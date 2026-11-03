@@ -220,6 +220,12 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
             <Input
               size="small"
               autoFocus
+              // 与单元格同字体同字号，避免进入编辑时列宽跳动
+              style={{
+                fontFamily: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
+                fontSize: 12,
+                padding: '0 4px'
+              }}
               defaultValue={text ?? ''}
               onBlur={(e) => void saveCell(row, col.name, e.target.value)}
               onPressEnter={(e) => void saveCell(row, col.name, (e.target as HTMLInputElement).value)}

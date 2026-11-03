@@ -31,11 +31,18 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* flex 子项默认 min-height:auto，内容超高时会把布局撑开而非内部滚动 */
+/* flex 子项默认 min-height/min-width:auto，内容超尺寸时会把布局撑开而非内部滚动 */
 .app-layout-inner,
 .app-sider,
 .app-content {
   min-height: 0;
+}
+
+/* 横向 flex 下，内容区不收缩会导致表格横向滚动失效 */
+.app-content,
+.tab-body,
+.tab-pane {
+  min-width: 0;
 }
 
 .app-sider {

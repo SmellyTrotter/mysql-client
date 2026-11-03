@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Drawer, Empty, List, Space, Tag as AntTag, Typography } from 'antd'
+import { App as AntApp, Drawer, Empty, List, Space, Tag as AntTag, Typography } from 'antd'
 import { DeleteOutlined, TableOutlined, CodeOutlined } from '@ant-design/icons'
 import { api } from '../api'
 import { useAppStore } from '../store/appStore'
@@ -26,17 +26,7 @@ export default function BookmarksDrawer() {
   }
 
   return (
-    <Drawer
-      title="书签"
-      open={open}
-      onClose={() => setOpen(false)}
-      width={360}
-      footer={
-        <Button block onClick={() => setOpen(false)}>
-          关闭
-        </Button>
-      }
-    >
+    <Drawer title="书签" open={open} onClose={() => setOpen(false)} width={360}>
       {bookmarks.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
