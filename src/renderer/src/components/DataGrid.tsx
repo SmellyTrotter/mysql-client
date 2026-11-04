@@ -15,10 +15,12 @@ import {
   Typography
 } from 'antd'
 import type { TableProps } from 'antd'
+import type { FilterDropdownProps } from 'antd/es/table/interface'
 import {
   CodeOutlined,
   DeleteOutlined,
   ExpandOutlined,
+  FilterFilled,
   PlusOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
@@ -46,6 +48,73 @@ function formatCell(value: unknown): string | null {
   return String(value)
 }
 
+/** 列头筛选面板：数字列默认 =，其他默认「包含」 */
+function ColumnFilterPanel({
+  col,
+  applied,
+  onApply,
+  onClear,
+  close
+}: {
+  col: ColumnInfo
+  applied?: FilterSpec
+  onApply: (f: FilterSpec) => void
+  onClear: () => void
+  close: () => void
+}) {
+  const numeric = /int|decimal|double|float|numeric|real|year/.test(col.type.toLowerCase())
+  const [op, setOp] = useState<'eq' | 'like'>(applied?.op ?? (numeric ? 'eq' : 'like'))
+  const [value, setValue] = useState(applied?.value ?? '')
+
+  const apply = () => {
+    if (!value.trim()) return
+    onApply({ column: col.name, op, value: value.trim() })
+    close()
+  }
+
+  return (
+    <div style={{ padding: 8, width: 240 }} onKeyDown={(e) => e.stopPropagation()}>
+      <Space direction="vertical" style={{ width: '100%' }} size={8}>
+        <Space.Compact block>
+          <Select
+            size="small"
+            value={op}
+            onChange={setOp}
+            style={{ width: 76 }}
+            options={[
+              { value: 'eq', label: '=' },
+              { value: 'like', label: '包含' }
+            ]}
+          />
+          <Input
+            size="small"
+            allowClear
+            autoFocus
+            placeholder={`筛选 ${col.name}`}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onPressEnter={apply}
+          />
+        </Space.Compact>
+        <Space>
+          <Button size="small" type="primary" disabled={!value.trim()} onClick={apply}>
+            确定
+          </Button>
+          <Button
+            size="small"
+            onClick={() => {
+              onClear()
+              close()
+            }}
+          >
+            重置
+          </Button>
+        </Space>
+      </Space>
+    </div>
+  )
+}
+
 export default function DataGrid({ tab }: { tab: TabItem }) {
   const { message, modal } = AntApp.useApp()
   const openDdl = useAppStore((s) => s.openDdl)
@@ -69,10 +138,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     row: Record<string, unknown>
     text: string | null
   } | null>(null)
-  /** 筛选：输入中的字段/操作符/值，点「筛选」后才生效 */
-  const [filterCol, setFilterCol] = useState<string | undefined>()
-  const [filterOp, setFilterOp] = useState<'eq' | 'like'>('like')
-  const [filterInput, setFilterInput] = useState('')
+  /** 筛选：一次只启用一个字段的筛选条件 */
   const [appliedFilter, setAppliedFilter] = useState<FilterSpec | undefined>()
   /** 长内容悬停预览（全表共用一个浮层） */
   const [hoverPreview, setHoverPreview] = useState<{ x: number; y: number; above: boolean; text: string } | null>(null)
@@ -247,6 +313,26 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
       key: col.name,
       sorter: true,
       sortOrder: effectiveSort?.column === col.name ? (effectiveSort.direction === 'asc' ? ('ascend' as const) : ('descend' as const)) : null,
+      filtered: appliedFilter?.column === col.name,
+      filteredValue: appliedFilter?.column === col.name ? [appliedFilter.value] : null,
+      filterIcon: (filtered: boolean) => (
+        <FilterFilled style={{ color: filtered ? 'var(--app-primary, #1677ff)' : undefined }} />
+      ),
+      filterDropdown: ({ confirm }: FilterDropdownProps) => (
+        <ColumnFilterPanel
+          col={col}
+          applied={appliedFilter?.column === col.name ? appliedFilter : undefined}
+          onApply={(f) => {
+            setPage(1)
+            setAppliedFilter(f)
+          }}
+          onClear={() => {
+            setAppliedFilter(undefined)
+            setPage(1)
+          }}
+          close={() => confirm({ closeDropdown: true })}
+        />
+      ),
       render: (value: unknown, row: Record<string, unknown>, rowIdx: number) => {
         const text = formatCell(value)
         const isEditing = editing?.rowIdx === rowIdx && editing.column === col.name
@@ -295,7 +381,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     }))
     return [detailColumn, ...dataColumns]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, editing, effectiveSort, pkColumns])
+  }, [data, editing, effectiveSort, pkColumns, appliedFilter])
 
   const onTableChange: TableProps<Record<string, unknown>>['onChange'] = (pagination, _filters, sorter) => {
     setPage(pagination.current ?? 1)
@@ -336,66 +422,6 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
         {data?.readonly && (
           <Alert type="warning" showIcon message="此表无主键，已切换为只读模式" style={{ padding: '0 8px' }} />
         )}
-        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginLeft: 12 }}>
-          <Select
-            size="small"
-            allowClear
-            showSearch
-            placeholder="筛选字段"
-            style={{ width: 150 }}
-            value={filterCol}
-            onChange={setFilterCol}
-            options={(data?.columns ?? []).map((c) => ({ value: c.name, label: c.name }))}
-          />
-          <Select
-            size="small"
-            style={{ width: 76 }}
-            value={filterOp}
-            onChange={setFilterOp}
-            options={[
-              { value: 'like', label: '包含' },
-              { value: 'eq', label: '=' }
-            ]}
-          />
-          <Input
-            size="small"
-            allowClear
-            placeholder="值，回车筛选"
-            style={{ width: 160 }}
-            value={filterInput}
-            onChange={(e) => setFilterInput(e.target.value)}
-            onPressEnter={() => {
-              if (filterCol && filterInput.trim()) {
-                setPage(1)
-                setAppliedFilter({ column: filterCol, op: filterOp, value: filterInput.trim() })
-              }
-            }}
-          />
-          <Button
-            size="small"
-            disabled={!filterCol || !filterInput.trim()}
-            onClick={() => {
-              if (filterCol && filterInput.trim()) {
-                setPage(1)
-                setAppliedFilter({ column: filterCol, op: filterOp, value: filterInput.trim() })
-              }
-            }}
-          >
-            筛选
-          </Button>
-          {appliedFilter && (
-            <Button
-              size="small"
-              onClick={() => {
-                setAppliedFilter(undefined)
-                setFilterInput('')
-                setPage(1)
-              }}
-            >
-              清除
-            </Button>
-          )}
-        </span>
         <span style={{ marginLeft: 'auto', color: '#999', fontSize: 12, whiteSpace: 'nowrap' }}>
           {appliedFilter && (
             <Typography.Text type="warning" style={{ fontSize: 12 }}>
