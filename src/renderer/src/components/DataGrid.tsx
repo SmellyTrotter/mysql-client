@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   App as AntApp,
   Alert,
@@ -74,6 +74,24 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
   const [filterOp, setFilterOp] = useState<'eq' | 'like'>('like')
   const [filterInput, setFilterInput] = useState('')
   const [appliedFilter, setAppliedFilter] = useState<FilterSpec | undefined>()
+  /** 长内容悬停预览（全表共用一个浮层） */
+  const [hoverPreview, setHoverPreview] = useState<{ x: number; y: number; above: boolean; text: string } | null>(null)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function onCellHoverStart(e: React.MouseEvent, text: string | null) {
+    if (!text || text.length < 40) return
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    hoverTimer.current = setTimeout(() => {
+      const above = rect.bottom + 340 > window.innerHeight
+      setHoverPreview({ x: rect.left, y: above ? rect.top : rect.bottom, above, text })
+    }, 350)
+  }
+
+  function onCellHoverEnd() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    setHoverPreview(null)
+  }
 
   const { connId, schema, table } = tab
   const pkColumns = useMemo(
@@ -244,6 +262,8 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
               e.stopPropagation()
               setCellMenu({ x: e.clientX, y: e.clientY, row, text })
             }}
+            onMouseEnter={(e) => onCellHoverStart(e, text)}
+            onMouseLeave={onCellHoverEnd}
           >
             {/* 底层文字始终渲染以维持列宽，编辑框绝对定位覆盖其上 */}
             {text ?? 'NULL'}
@@ -415,6 +435,45 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
           scroll={{ x: 'max-content', y: 'calc(100vh - 240px)' }}
         />
       </div>
+
+      {/* 长内容悬停预览（全表共用一个） */}
+      {hoverPreview && (
+        <div
+          style={{
+            position: 'fixed',
+            left: Math.min(hoverPreview.x, window.innerWidth - 500),
+            ...(hoverPreview.above
+              ? { bottom: window.innerHeight - hoverPreview.y + 4 }
+              : { top: hoverPreview.y + 4 }),
+            zIndex: 200,
+            maxWidth: 480,
+            maxHeight: 320,
+            overflow: 'auto',
+            background: '#fff',
+            borderRadius: 8,
+            boxShadow: '0 6px 16px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.15)',
+            padding: '10px 12px',
+            pointerEvents: 'none'
+          }}
+        >
+          <pre
+            style={{
+              margin: 0,
+              fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+              fontSize: 12,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all'
+            }}
+          >
+            {prettyJson(hoverPreview.text)}
+          </pre>
+          {parseTimestamp(hoverPreview.text) && (
+            <div style={{ marginTop: 6, fontSize: 11, color: '#999' }}>
+              时间戳 → {parseTimestamp(hoverPreview.text)}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 全表共用的单元格右键菜单 */}
       {cellMenu && (
