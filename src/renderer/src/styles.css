@@ -150,9 +150,9 @@ body {
 }
 
 .tab-chip.active {
-  border-color: #1677ff;
-  color: #1677ff;
-  background: #f0f7ff;
+  border-color: var(--app-primary, #1677ff);
+  color: var(--app-primary, #1677ff);
+  background: color-mix(in srgb, var(--app-primary, #1677ff) 8%, #fff);
 }
 
 .tab-chip .tab-chip-close {

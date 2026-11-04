@@ -8,6 +8,7 @@ import {
   Input,
   Menu,
   Modal,
+  Select,
   Space,
   Table,
   Tooltip,
@@ -21,7 +22,7 @@ import {
   PlusOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import type { ColumnInfo, SortSpec, TableDataResult } from '../../../shared/types'
+import type { ColumnInfo, FilterSpec, SortSpec, TableDataResult } from '../../../shared/types'
 import { api } from '../api'
 import { useAppStore, type TabItem } from '../store/appStore'
 
@@ -68,6 +69,11 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     row: Record<string, unknown>
     text: string | null
   } | null>(null)
+  /** 筛选：输入中的字段/操作符/值，点「筛选」后才生效 */
+  const [filterCol, setFilterCol] = useState<string | undefined>()
+  const [filterOp, setFilterOp] = useState<'eq' | 'like'>('like')
+  const [filterInput, setFilterInput] = useState('')
+  const [appliedFilter, setAppliedFilter] = useState<FilterSpec | undefined>()
 
   const { connId, schema, table } = tab
   const pkColumns = useMemo(
@@ -75,19 +81,30 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     [data]
   )
 
+  /** 用户未手动排序时的默认排序：create_time desc > id desc */
+  const defaultSort = useMemo<SortSpec | undefined>(() => {
+    const cols = data?.columns ?? []
+    if (cols.some((c) => c.name === 'create_time')) return { column: 'create_time', direction: 'desc' }
+    if (cols.some((c) => c.name === 'id')) return { column: 'id', direction: 'desc' }
+    return undefined
+  }, [data])
+
+  const effectiveSort = sort ?? defaultSort
+
   const load = useCallback(async () => {
     if (!table) return
     setLoading(true)
     setError(null)
     try {
-      const result = await api.table.data(connId, schema, table, page, pageSize, sort)
+      const result = await api.table.data(connId, schema, table, page, pageSize, effectiveSort, appliedFilter)
       setData(result)
     } catch (err) {
       setError((err as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [connId, schema, table, page, pageSize, sort])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connId, schema, table, page, pageSize, effectiveSort?.column, effectiveSort?.direction, appliedFilter])
 
   useEffect(() => {
     void load()
@@ -211,7 +228,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
       dataIndex: col.name,
       key: col.name,
       sorter: true,
-      sortOrder: sort?.column === col.name ? (sort.direction === 'asc' ? ('ascend' as const) : ('descend' as const)) : null,
+      sortOrder: effectiveSort?.column === col.name ? (effectiveSort.direction === 'asc' ? ('ascend' as const) : ('descend' as const)) : null,
       render: (value: unknown, row: Record<string, unknown>, rowIdx: number) => {
         const text = formatCell(value)
         const isEditing = editing?.rowIdx === rowIdx && editing.column === col.name
@@ -258,7 +275,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     }))
     return [detailColumn, ...dataColumns]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, editing, sort, pkColumns])
+  }, [data, editing, effectiveSort, pkColumns])
 
   const onTableChange: TableProps<Record<string, unknown>>['onChange'] = (pagination, _filters, sorter) => {
     setPage(pagination.current ?? 1)
@@ -299,7 +316,78 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
         {data?.readonly && (
           <Alert type="warning" showIcon message="此表无主键，已切换为只读模式" style={{ padding: '0 8px' }} />
         )}
-        <span style={{ marginLeft: 'auto', color: '#999', fontSize: 12 }}>
+        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginLeft: 12 }}>
+          <Select
+            size="small"
+            allowClear
+            showSearch
+            placeholder="筛选字段"
+            style={{ width: 150 }}
+            value={filterCol}
+            onChange={setFilterCol}
+            options={(data?.columns ?? []).map((c) => ({ value: c.name, label: c.name }))}
+          />
+          <Select
+            size="small"
+            style={{ width: 76 }}
+            value={filterOp}
+            onChange={setFilterOp}
+            options={[
+              { value: 'like', label: '包含' },
+              { value: 'eq', label: '=' }
+            ]}
+          />
+          <Input
+            size="small"
+            allowClear
+            placeholder="值，回车筛选"
+            style={{ width: 160 }}
+            value={filterInput}
+            onChange={(e) => setFilterInput(e.target.value)}
+            onPressEnter={() => {
+              if (filterCol && filterInput.trim()) {
+                setPage(1)
+                setAppliedFilter({ column: filterCol, op: filterOp, value: filterInput.trim() })
+              }
+            }}
+          />
+          <Button
+            size="small"
+            disabled={!filterCol || !filterInput.trim()}
+            onClick={() => {
+              if (filterCol && filterInput.trim()) {
+                setPage(1)
+                setAppliedFilter({ column: filterCol, op: filterOp, value: filterInput.trim() })
+              }
+            }}
+          >
+            筛选
+          </Button>
+          {appliedFilter && (
+            <Button
+              size="small"
+              onClick={() => {
+                setAppliedFilter(undefined)
+                setFilterInput('')
+                setPage(1)
+              }}
+            >
+              清除
+            </Button>
+          )}
+        </span>
+        <span style={{ marginLeft: 'auto', color: '#999', fontSize: 12, whiteSpace: 'nowrap' }}>
+          {appliedFilter && (
+            <Typography.Text type="warning" style={{ fontSize: 12 }}>
+              筛选: {appliedFilter.column} {appliedFilter.op === 'like' ? '包含' : '='} {appliedFilter.value} ·{' '}
+            </Typography.Text>
+          )}
+          {effectiveSort && (
+            <Typography.Text style={{ fontSize: 12, color: '#722ed1' }}>
+              排序: {effectiveSort.column} {effectiveSort.direction === 'desc' ? '↓' : '↑'}
+              {!sort && '（默认）'} ·{' '}
+            </Typography.Text>
+          )}
           共 {data?.total ?? '-'} 行 · 双击单元格编辑
         </span>
       </div>

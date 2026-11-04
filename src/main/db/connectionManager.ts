@@ -4,6 +4,7 @@ import type {
   ColumnInfo,
   ConnectionConfig,
   ConnectionInput,
+  FilterSpec,
   QueryResult,
   SortSpec,
   TableDataResult
@@ -137,7 +138,8 @@ export async function fetchTableData(
   table: string,
   page: number,
   pageSize: number,
-  sort?: SortSpec
+  sort?: SortSpec,
+  filter?: FilterSpec
 ): Promise<TableDataResult> {
   const pool = getPool(config)
   const columns = await fetchColumns(config, schema, table)
@@ -149,14 +151,24 @@ export async function fetchTableData(
       ? `ORDER BY ${pkColumns.map((c) => quoteIdent(c.name)).join(', ')}`
       : ''
 
+  const params: unknown[] = []
+  let where = ''
+  if (filter && filter.value.trim() !== '') {
+    where = filter.op === 'like'
+      ? `WHERE ${quoteIdent(filter.column)} LIKE ?`
+      : `WHERE ${quoteIdent(filter.column)} = ?`
+    params.push(filter.op === 'like' ? `%${filter.value}%` : filter.value)
+  }
+
   const qualified = `${quoteIdent(schema)}.${quoteIdent(table)}`
   // 数据与总数并行查询，缩短打开表的等待
   const [[rows], [countRows]] = await Promise.all([
-    pool.query(`SELECT * FROM ${qualified} ${orderBy} LIMIT ? OFFSET ?`, [
+    pool.query(`SELECT * FROM ${qualified} ${where} ${orderBy} LIMIT ? OFFSET ?`, [
+      ...params,
       pageSize,
       (page - 1) * pageSize
     ]),
-    pool.query(`SELECT COUNT(*) AS cnt FROM ${qualified}`)
+    pool.query(`SELECT COUNT(*) AS cnt FROM ${qualified} ${where}`, params)
   ])
 
   return {

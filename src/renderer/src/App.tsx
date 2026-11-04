@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { App as AntApp, Layout, Spin } from 'antd'
+import { App as AntApp, ConfigProvider, Layout, Spin } from 'antd'
 import { useAppStore } from './store/appStore'
 import { useUiStore } from './store/uiStore'
 import Toolbar from './components/Toolbar'
@@ -21,11 +21,17 @@ export default function App() {
   const initialized = useAppStore((s) => s.initialized)
   const siderWidth = useUiStore((s) => s.siderWidth)
   const siderVisible = useUiStore((s) => s.siderVisible)
+  const themeColor = useUiStore((s) => s.themeColor)
   const dragging = useRef(false)
 
   useEffect(() => {
     void init()
   }, [init])
+
+  // 自定义 CSS 里的主色（激活 tab 等）跟随主题
+  useEffect(() => {
+    document.documentElement.style.setProperty('--app-primary', themeColor)
+  }, [themeColor])
 
   const siderRef = useRef<HTMLElement>(null)
 
@@ -61,19 +67,26 @@ export default function App() {
 
   return (
     <AntApp>
+    <ConfigProvider theme={{ token: { colorPrimary: themeColor } }}>
     <Layout style={{ height: '100%' }}>
       <Layout.Header className="app-header" style={{ background: '#fff' }}>
         <Toolbar />
       </Layout.Header>
       <Layout className="app-layout-inner" style={{ flexDirection: 'row' }}>
-        {siderVisible && (
-          <>
-            <aside ref={siderRef} className="app-sider" style={{ width: siderWidth, flexShrink: 0 }}>
-              {initialized ? <Sidebar /> : <Spin style={{ margin: '40px auto' }} />}
-            </aside>
-            <div className="sider-resizer" onMouseDown={startDrag} title="拖动调整宽度，拖到最左隐藏" />
-          </>
-        )}
+        {/* 侧栏始终挂载，隐藏仅 display:none，保留滚动位置与树展开状态 */}
+        <aside
+          ref={siderRef}
+          className="app-sider"
+          style={{ width: siderWidth, flexShrink: 0, display: siderVisible ? 'flex' : 'none' }}
+        >
+          {initialized ? <Sidebar /> : <Spin style={{ margin: '40px auto' }} />}
+        </aside>
+        <div
+          className="sider-resizer"
+          style={{ display: siderVisible ? 'block' : 'none' }}
+          onMouseDown={startDrag}
+          title="拖动调整宽度，拖到最左隐藏"
+        />
         <Layout.Content className="app-content">
           <TabsView />
         </Layout.Content>
@@ -84,6 +97,7 @@ export default function App() {
       <SqlLogDrawer />
       <SettingsModal />
     </Layout>
+    </ConfigProvider>
     </AntApp>
   )
 }

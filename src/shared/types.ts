@@ -68,6 +68,13 @@ export interface SortSpec {
   direction: 'asc' | 'desc'
 }
 
+export interface FilterSpec {
+  column: string
+  /** eq = 精确匹配，like = 包含（%value%） */
+  op: 'eq' | 'like'
+  value: string
+}
+
 export interface Tag {
   id: number
   name: string

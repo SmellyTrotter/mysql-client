@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { randomUUID } from 'node:crypto'
-import type { ConnectionInput, SortSpec } from '../shared/types'
+import type { ConnectionInput, FilterSpec, SortSpec } from '../shared/types'
 import * as store from './db/store'
 import * as cm from './db/connectionManager'
 import { buildDelete, buildInsert, buildUpdate } from './db/crud'
@@ -79,8 +79,8 @@ export function registerIpcHandlers(): void {
 
   handle(
     'table:data',
-    (connId: string, schema: string, table: string, page: number, pageSize: number, sort?: SortSpec) =>
-      cm.fetchTableData(requireConn(connId), schema, table, page, pageSize, sort)
+    (connId: string, schema: string, table: string, page: number, pageSize: number, sort?: SortSpec, filter?: FilterSpec) =>
+      cm.fetchTableData(requireConn(connId), schema, table, page, pageSize, sort, filter)
   )
 
   handle('table:columns', (connId: string, schema: string, table: string) =>

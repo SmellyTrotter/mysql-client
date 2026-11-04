@@ -5,6 +5,7 @@ import type {
   ColumnInfo,
   ConnectionConfig,
   ConnectionInput,
+  FilterSpec,
   QueryResult,
   SortSpec,
   SqlLogEntry,
@@ -36,8 +37,8 @@ const api = {
     run: (connId: string, sql: string) => invoke<QueryResult>('query:run', connId, sql)
   },
   table: {
-    data: (connId: string, schema: string, table: string, page: number, pageSize: number, sort?: SortSpec) =>
-      invoke<TableDataResult>('table:data', connId, schema, table, page, pageSize, sort),
+    data: (connId: string, schema: string, table: string, page: number, pageSize: number, sort?: SortSpec, filter?: FilterSpec) =>
+      invoke<TableDataResult>('table:data', connId, schema, table, page, pageSize, sort, filter),
     columns: (connId: string, schema: string, table: string) =>
       invoke<ColumnInfo[]>('table:columns', connId, schema, table),
     ddl: (connId: string, schema: string, table: string) => invoke<string>('table:ddl', connId, schema, table),
