@@ -163,10 +163,9 @@ export default function Sidebar() {
             }}
           >
             <span className="tree-node-title">
-              <span className="tree-node-name">{conn.name || conn.host}</span>
-              <span className="shard-count">
-                {conn.user}@{conn.host}:{conn.port}
-              </span>
+              <Tooltip title={`${conn.user}@${conn.host}:${conn.port}`} mouseEnterDelay={0.4}>
+                <span className="tree-node-name">{conn.name || conn.host}</span>
+              </Tooltip>
             </span>
           </Dropdown>
         ),

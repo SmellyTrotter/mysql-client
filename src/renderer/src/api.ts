@@ -19,16 +19,16 @@ function createMockApi(): Api {
   const conn: Omit<ConnectionConfig, 'passwordEnc'> = {
     id: 'mock-1',
     name: '本地 Mock',
-    host: '127.0.0.1',
-    port: 3306,
-    user: 'root'
+    host: 'public-wlf2-d53-cds-staging-node7.idchb2az2.hb2.kwaicd.com',
+    port: 47785,
+    user: 'test_rw'
   }
   const conn2: Omit<ConnectionConfig, 'passwordEnc'> = {
     id: 'mock-2',
     name: '测试环境',
-    host: '10.0.0.2',
-    port: 3307,
-    user: 'root'
+    host: 'public-wlf2-d53-cds-staging-node7.idchb2az2.hb2.kwaicd.com',
+    port: 47785,
+    user: 'test_rw'
   }
   const schemas2 = ['analytics']
   const tables2: TableInfo[] = Array.from({ length: 6 }, (_, i) => ({
