@@ -28,9 +28,14 @@ export default function App() {
     void init()
   }, [init])
 
-  // 自定义 CSS 里的主色（激活 tab 等）跟随主题
+  // 自定义 CSS 里的主题变量（激活 tab、悬停态、背景淡色等）跟随主题
   useEffect(() => {
-    document.documentElement.style.setProperty('--app-primary', themeColor)
+    const style = document.documentElement.style
+    style.setProperty('--app-primary', themeColor)
+    // 由主色派生：悬停描边色、浅背景色、界面淡染色，供自定义 CSS 使用
+    style.setProperty('--app-primary-hover', `color-mix(in srgb, ${themeColor} 40%, #ffffff)`)
+    style.setProperty('--app-primary-bg', `color-mix(in srgb, ${themeColor} 8%, #ffffff)`)
+    style.setProperty('--app-primary-bg-subtle', `color-mix(in srgb, ${themeColor} 4%, #fafafa)`)
   }, [themeColor])
 
   const siderRef = useRef<HTMLElement>(null)
