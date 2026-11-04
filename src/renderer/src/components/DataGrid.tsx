@@ -17,6 +17,8 @@ import {
 import type { TableProps } from 'antd'
 import type { FilterDropdownProps } from 'antd/es/table/interface'
 import {
+  CaretDownFilled,
+  CaretUpFilled,
   CodeOutlined,
   DeleteOutlined,
   ExpandOutlined,
@@ -175,6 +177,16 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
 
   const effectiveSort = sort ?? defaultSort
 
+  /** 点击表头箭头：直接升/降序；点当前生效方向则取消（回退默认排序） */
+  function toggleSort(column: string, direction: 'asc' | 'desc') {
+    setPage(1)
+    if (effectiveSort?.column === column && effectiveSort.direction === direction) {
+      setSort(undefined)
+    } else {
+      setSort({ column, direction })
+    }
+  }
+
   const load = useCallback(async () => {
     if (!table) return
     setLoading(true)
@@ -302,17 +314,34 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     }
     const dataColumns = (data?.columns ?? []).map((col: ColumnInfo) => ({
       title: (
-        <Tooltip title={`${col.type}${col.comment ? ` · ${col.comment}` : ''}`}>
-          <span>
-            {col.name}
-            {col.isPrimary && <span style={{ color: '#faad14' }}> 🔑</span>}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          <Tooltip title={`${col.type}${col.comment ? ` · ${col.comment}` : ''}`}>
+            <span>
+              {col.name}
+              {col.isPrimary && <span style={{ color: '#faad14' }}> 🔑</span>}
+            </span>
+          </Tooltip>
+          {/* 两个独立箭头：一键升序/降序，不走 antd 的循环切换 */}
+          <span style={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1, marginLeft: 2 }}>
+            <CaretUpFilled
+              className={`sort-arrow ${effectiveSort?.column === col.name && effectiveSort.direction === 'asc' ? 'on' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleSort(col.name, 'asc')
+              }}
+            />
+            <CaretDownFilled
+              className={`sort-arrow ${effectiveSort?.column === col.name && effectiveSort.direction === 'desc' ? 'on' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleSort(col.name, 'desc')
+              }}
+            />
           </span>
-        </Tooltip>
+        </span>
       ),
       dataIndex: col.name,
       key: col.name,
-      sorter: true,
-      sortOrder: effectiveSort?.column === col.name ? (effectiveSort.direction === 'asc' ? ('ascend' as const) : ('descend' as const)) : null,
       filtered: appliedFilter?.column === col.name,
       filteredValue: appliedFilter?.column === col.name ? [appliedFilter.value] : null,
       filterIcon: (filtered: boolean) => (
@@ -383,17 +412,11 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, editing, effectiveSort, pkColumns, appliedFilter])
 
-  const onTableChange: TableProps<Record<string, unknown>>['onChange'] = (pagination, _filters, sorter) => {
+  const onTableChange: TableProps<Record<string, unknown>>['onChange'] = (pagination) => {
     setPage(pagination.current ?? 1)
     const nextSize = pagination.pageSize ?? 100
     setPageSize(nextSize)
     useAppStore.getState().setTablePageSize(nextSize)
-    const s = Array.isArray(sorter) ? sorter[0] : sorter
-    if (s?.order && s.columnKey) {
-      setSort({ column: String(s.columnKey), direction: s.order === 'ascend' ? 'asc' : 'desc' })
-    } else {
-      setSort(undefined)
-    }
   }
 
   if (error) return <Alert type="error" message="加载失败" description={error} showIcon style={{ margin: 24 }} />
