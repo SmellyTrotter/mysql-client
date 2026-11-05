@@ -28,6 +28,11 @@ export default function App() {
     void init()
   }, [init])
 
+  // Windows 下 header 布局不同：左侧无需给红绿灯留位，右侧需给悬浮窗口按钮留位
+  useEffect(() => {
+    if (navigator.userAgent.includes('Windows')) document.body.classList.add('platform-win')
+  }, [])
+
   // 自定义 CSS 里的主题变量（激活 tab、悬停态、背景淡色等）跟随主题
   useEffect(() => {
     const style = document.documentElement.style

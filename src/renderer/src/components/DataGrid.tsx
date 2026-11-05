@@ -452,7 +452,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
             </Typography.Text>
           )}
           {effectiveSort && (
-            <Typography.Text style={{ fontSize: 12, color: '#722ed1' }}>
+            <Typography.Text style={{ fontSize: 12, color: 'var(--app-primary, #1677ff)' }}>
               排序: {effectiveSort.column} {effectiveSort.direction === 'desc' ? '↓' : '↑'}
               {!sort && '（默认）'} ·{' '}
             </Typography.Text>

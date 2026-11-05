@@ -5,13 +5,24 @@ import { closeAllPools } from './db/connectionManager'
 import { cleanupSqlLogs } from './db/store'
 
 function createWindow(): void {
+  const isMac = process.platform === 'darwin'
+  const isWin = process.platform === 'win32'
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 960,
     minHeight: 600,
     title: 'MySQL Client',
-    titleBarStyle: 'hiddenInset',
+    // macOS 用 hiddenInset（红绿灯内嵌）；Windows 用 hidden + titleBarOverlay
+    // （原生窗口按钮悬浮在 header 右上），两者都靠 header 的 app-region: drag 拖动
+    ...(isMac
+      ? { titleBarStyle: 'hiddenInset' as const }
+      : isWin
+        ? {
+            titleBarStyle: 'hidden' as const,
+            titleBarOverlay: { color: '#ffffff', symbolColor: '#171717', height: 48 }
+          }
+        : {}),
     webPreferences: {
       preload: path.join(import.meta.dirname, '../preload/index.mjs'),
       contextIsolation: true,

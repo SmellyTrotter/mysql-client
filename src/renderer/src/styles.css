@@ -31,6 +31,12 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Windows：左侧没有红绿灯，右侧给 titleBarOverlay 的窗口按钮留位（3 按钮约 138px） */
+.platform-win .app-header {
+  padding-left: 12px;
+  padding-right: 140px;
+}
+
 /*
  * 无边框窗口的拖拽区在浏览器层命中，盖在上面的浮层控件（抽屉×、按钮等）
  * 若落在窗口顶部拖拽带内会被截获点击，必须显式声明 no-drag
@@ -241,7 +247,7 @@ body {
   gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  background: var(--app-primary-bg-subtle, #fff);
 }
 
 .editor-container {
