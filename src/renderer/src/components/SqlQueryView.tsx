@@ -80,7 +80,7 @@ export default function SqlQueryView({ tab }: { tab: TabItem }) {
           收藏为书签
         </Button>
         {result && (
-          <span style={{ color: '#999', fontSize: 12 }}>
+          <span style={{ color: 'var(--app-text-muted)', fontSize: 12 }}>
             {result.affectedRows !== undefined
               ? `影响行数 ${result.affectedRows}`
               : `返回 ${result.rows.length} 行`}{' '}

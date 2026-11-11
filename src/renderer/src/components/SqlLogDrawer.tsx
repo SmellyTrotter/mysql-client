@@ -84,7 +84,7 @@ export default function SqlLogDrawer() {
                       fontSize: 12,
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-all',
-                      background: '#fafafa',
+                      background: 'var(--app-primary-bg-subtle)',
                       padding: 8,
                       borderRadius: 6,
                       marginBottom: 0

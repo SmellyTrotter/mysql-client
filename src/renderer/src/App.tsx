@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { App as AntApp, ConfigProvider, Layout, Spin } from 'antd'
+import zhCN from 'antd/locale/zh_CN'
 import { useAppStore } from './store/appStore'
 import { useUiStore } from './store/uiStore'
+import { buildAntdTheme, buildThemeVars } from './theme'
 import Toolbar from './components/Toolbar'
 import Sidebar from './components/Sidebar'
 import TabsView from './components/TabsView'
@@ -22,7 +24,14 @@ export default function App() {
   const siderWidth = useUiStore((s) => s.siderWidth)
   const siderVisible = useUiStore((s) => s.siderVisible)
   const themeColor = useUiStore((s) => s.themeColor)
+  const appearance = useUiStore((s) => s.appearance)
+  const accentStrength = useUiStore((s) => s.accentStrength)
   const dragging = useRef(false)
+  const siderRef = useRef<HTMLElement>(null)
+
+  const [systemDark, setSystemDark] = useState(
+    () => (window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false)
+  )
 
   useEffect(() => {
     void init()
@@ -33,17 +42,32 @@ export default function App() {
     if (navigator.userAgent.includes('Windows')) document.body.classList.add('platform-win')
   }, [])
 
-  // 自定义 CSS 里的主题变量（激活 tab、悬停态、背景淡色等）跟随主题
+  // 「跟随系统」需要监听系统配色切换
   useEffect(() => {
-    const style = document.documentElement.style
-    style.setProperty('--app-primary', themeColor)
-    // 由主色派生：悬停描边色、浅背景色、界面淡染色，供自定义 CSS 使用
-    style.setProperty('--app-primary-hover', `color-mix(in srgb, ${themeColor} 40%, #ffffff)`)
-    style.setProperty('--app-primary-bg', `color-mix(in srgb, ${themeColor} 8%, #ffffff)`)
-    style.setProperty('--app-primary-bg-subtle', `color-mix(in srgb, ${themeColor} 4%, #fafafa)`)
-  }, [themeColor])
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches)
+    setSystemDark(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
-  const siderRef = useRef<HTMLElement>(null)
+  const dark = appearance === 'dark' || (appearance === 'system' && systemDark)
+  const themeVars = useMemo(
+    () => buildThemeVars(themeColor, dark, accentStrength),
+    [themeColor, dark, accentStrength]
+  )
+  const antdTheme = useMemo(
+    () => buildAntdTheme(themeColor, dark, themeVars),
+    [themeColor, dark, themeVars]
+  )
+
+  // 自定义 CSS 与 antd 组件 token 共用一套派生色，主题色一次性影响全界面
+  useEffect(() => {
+    const root = document.documentElement
+    for (const [key, value] of Object.entries(themeVars)) root.style.setProperty(key, value)
+    root.dataset.appTheme = dark ? 'dark' : 'light'
+    root.style.colorScheme = dark ? 'dark' : 'light'
+  }, [themeVars, dark])
 
   function startDrag(e: React.MouseEvent) {
     e.preventDefault()
@@ -76,38 +100,38 @@ export default function App() {
   }
 
   return (
-    <AntApp>
-    <ConfigProvider theme={{ token: { colorPrimary: themeColor } }}>
-    <Layout style={{ height: '100%' }}>
-      <Layout.Header className="app-header" style={{ background: '#fff' }}>
-        <Toolbar />
-      </Layout.Header>
-      <Layout className="app-layout-inner" style={{ flexDirection: 'row' }}>
-        {/* 侧栏始终挂载，隐藏仅 display:none，保留滚动位置与树展开状态 */}
-        <aside
-          ref={siderRef}
-          className="app-sider"
-          style={{ width: siderWidth, flexShrink: 0, display: siderVisible ? 'flex' : 'none' }}
-        >
-          {initialized ? <Sidebar /> : <Spin style={{ margin: '40px auto' }} />}
-        </aside>
-        <div
-          className="sider-resizer"
-          style={{ display: siderVisible ? 'block' : 'none' }}
-          onMouseDown={startDrag}
-          title="拖动调整宽度，拖到最左隐藏"
-        />
-        <Layout.Content className="app-content">
-          <TabsView />
-        </Layout.Content>
-      </Layout>
-      <ConnectionDialog />
-      <TagManager />
-      <BookmarksDrawer />
-      <SqlLogDrawer />
-      <SettingsModal />
-    </Layout>
+    <ConfigProvider locale={zhCN} theme={antdTheme}>
+      <AntApp>
+        <Layout style={{ height: '100%' }}>
+          <Layout.Header className="app-header">
+            <Toolbar />
+          </Layout.Header>
+          <Layout className="app-layout-inner" style={{ flexDirection: 'row' }}>
+            {/* 侧栏始终挂载，隐藏仅 display:none，保留滚动位置与树展开状态 */}
+            <aside
+              ref={siderRef}
+              className="app-sider"
+              style={{ width: siderWidth, flexShrink: 0, display: siderVisible ? 'flex' : 'none' }}
+            >
+              {initialized ? <Sidebar /> : <Spin style={{ margin: '40px auto' }} />}
+            </aside>
+            <div
+              className="sider-resizer"
+              style={{ display: siderVisible ? 'block' : 'none' }}
+              onMouseDown={startDrag}
+              title="拖动调整宽度，拖到最左隐藏"
+            />
+            <Layout.Content className="app-content">
+              <TabsView />
+            </Layout.Content>
+          </Layout>
+          <ConnectionDialog />
+          <TagManager />
+          <BookmarksDrawer />
+          <SqlLogDrawer />
+          <SettingsModal />
+        </Layout>
+      </AntApp>
     </ConfigProvider>
-    </AntApp>
   )
 }

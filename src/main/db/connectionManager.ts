@@ -10,7 +10,9 @@ import type {
   TableDataResult
 } from '../../shared/types'
 import { quoteIdent } from './crud'
+import { matchesScope, parseScopeList } from '../../shared/scope'
 
+const SYSTEM_SCHEMAS = ['mysql', 'sys', 'information_schema', 'performance_schema']
 const pools = new Map<string, Pool>()
 
 export function encryptPassword(plain: string): string {
@@ -93,13 +95,38 @@ export async function runQuery(config: ConnectionConfig, sql: string): Promise<Q
 export async function fetchAllTables(
   config: ConnectionConfig
 ): Promise<{ schema: string; name: string; comment: string }[]> {
+  const schemaTokens = parseScopeList(config.schemaScope)
+  const tableTokens = parseScopeList(config.tableScope)
+
+  // 库名都是精确值时下推到 SQL，减少跨库扫描；带通配符的留在 JS 里过滤
+  const exactSchemas = schemaTokens.filter((t) => !t.includes('*'))
+  const pushDown = schemaTokens.length > 0 && exactSchemas.length === schemaTokens.length
+  const conditions = ["TABLE_SCHEMA NOT IN ('mysql', 'sys', 'information_schema', 'performance_schema')"]
+  const params: string[] = []
+  if (pushDown) {
+    conditions.push(`TABLE_SCHEMA IN (${exactSchemas.map(() => '?').join(', ')})`)
+    params.push(...exactSchemas)
+  }
+
   const [rows] = await getPool(config).query(
     `SELECT TABLE_SCHEMA AS \`schema\`, TABLE_NAME AS name, TABLE_COMMENT AS comment
      FROM information_schema.TABLES
-     WHERE TABLE_SCHEMA NOT IN ('mysql', 'sys', 'information_schema', 'performance_schema')
-     ORDER BY TABLE_SCHEMA, TABLE_NAME`
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY TABLE_SCHEMA, TABLE_NAME`,
+    params
   )
-  return rows as { schema: string; name: string; comment: string }[]
+  return (rows as { schema: string; name: string; comment: string }[]).filter(
+    (r) => matchesScope(r.schema, schemaTokens) && matchesScope(r.name, tableTokens)
+  )
+}
+
+/** 连接弹窗里「库范围」的候选值：取该账号能看到的全部业务库 */
+export async function listServerSchemas(config: ConnectionConfig): Promise<string[]> {
+  const [rows] = await getPool(config).query('SHOW DATABASES')
+  return (rows as Record<string, string>[])
+    .map((r) => r.Database)
+    .filter((name) => !!name && !SYSTEM_SCHEMAS.includes(name))
+    .sort((a, b) => a.localeCompare(b))
 }
 
 export async function fetchColumns(config: ConnectionConfig, schema: string, table: string): Promise<ColumnInfo[]> {

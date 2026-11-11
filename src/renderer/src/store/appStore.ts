@@ -26,6 +26,8 @@ interface AppState {
   tabs: TabItem[]
   activeTabKey: string | null
   metadataLoading: boolean
+  /** 最近一次刷新元数据的失败原因，供工具栏提示 */
+  metadataError: string | null
   tablePageSize: number
   setTablePageSize: (n: number) => void
   maxTabs: number
@@ -73,6 +75,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   tabs: [],
   activeTabKey: null,
   metadataLoading: false,
+  metadataError: null,
   tablePageSize: Number(localStorage.getItem('mysql-client.pageSize')) || 100,
   setTablePageSize: (n) => {
     localStorage.setItem('mysql-client.pageSize', String(n))
@@ -131,17 +134,24 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   refreshMetadata: async (connId) => {
     const targets = connId ? [connId] : get().connections.map((c) => c.id)
-    set({ metadataLoading: true })
+    set({ metadataLoading: true, metadataError: null })
+    const errors: string[] = []
     try {
       for (const id of targets) {
-        await api.metadata.refresh(id)
-        const schemas = await api.metadata.schemas(id)
-        set((s) => ({
-          schemasByConn: { ...s.schemasByConn, [id]: schemas },
-          tableNodesByConn: { ...s.tableNodesByConn, [id]: {} }
-        }))
-        if (schemas.length > 0) await get().ensureSchemaTables(id, schemas[0])
+        try {
+          await api.metadata.refresh(id)
+          const schemas = await api.metadata.schemas(id)
+          set((s) => ({
+            schemasByConn: { ...s.schemasByConn, [id]: schemas },
+            tableNodesByConn: { ...s.tableNodesByConn, [id]: {} }
+          }))
+          if (schemas.length > 0) await get().ensureSchemaTables(id, schemas[0])
+        } catch (err) {
+          const name = get().connections.find((c) => c.id === id)?.name ?? id
+          errors.push(`${name}: ${err instanceof Error ? err.message : String(err)}`)
+        }
       }
+      set({ metadataError: errors.length > 0 ? errors.join('；') : null })
     } finally {
       set({ metadataLoading: false })
     }
@@ -229,8 +239,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     const connId = id ?? (await api.connections.create(input))
     if (id) await api.connections.update(id, input)
     const connections = await api.connections.list()
-    set({ connections })
-    await get().ensureConnectionData(connId)
+    // 主机/账号/库表范围都可能变了，先丢掉该连接的前端缓存，否则树上仍是旧库表
+    set((s) => {
+      const schemasByConn = { ...s.schemasByConn }
+      const tableNodesByConn = { ...s.tableNodesByConn }
+      delete schemasByConn[connId]
+      delete tableNodesByConn[connId]
+      return { connections, schemasByConn, tableNodesByConn }
+    })
+    // 保存后立即按新参数重建元数据（不阻塞弹窗关闭），新建连接也无需再手动点刷新
+    void get().refreshMetadata(connId)
   },
 
   removeConnection: async (id) => {

@@ -16,6 +16,7 @@ export default function Toolbar() {
   const lastUsedConnId = useAppStore((s) => s.lastUsedConnId)
   const schemasByConn = useAppStore((s) => s.schemasByConn)
   const metadataLoading = useAppStore((s) => s.metadataLoading)
+  const metadataError = useAppStore((s) => s.metadataError)
   const refreshMetadata = useAppStore((s) => s.refreshMetadata)
   const openQuery = useAppStore((s) => s.openQuery)
   const openConnectionDialog = useUiStore((s) => s.openConnectionDialog)
@@ -26,10 +27,18 @@ export default function Toolbar() {
   const toggleSider = useUiStore((s) => s.toggleSider)
 
   return (
-    <Space className="no-drag" size={8}>
-      <Typography.Text strong style={{ marginRight: 4 }}>
+    <Space className="app-header-tools" size={8}>
+      <span className="brand-mark" />
+      <Typography.Text strong className="brand-title" style={{ marginRight: 4 }}>
         MySQL Client
       </Typography.Text>
+      {metadataError && (
+        <Tooltip title={metadataError}>
+          <Typography.Text type="danger" className="metadata-error" style={{ fontSize: 12 }}>
+            元数据刷新失败
+          </Typography.Text>
+        </Tooltip>
+      )}
       <Tooltip title={siderVisible ? '隐藏左侧栏' : '显示左侧栏'}>
         <Button type={siderVisible ? 'default' : 'primary'} icon={<LayoutOutlined />} onClick={toggleSider} />
       </Tooltip>

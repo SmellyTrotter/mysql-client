@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, nativeTheme } from 'electron'
 import path from 'node:path'
 import { registerIpcHandlers } from './ipc'
 import { closeAllPools } from './db/connectionManager'
@@ -13,6 +13,8 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 600,
     title: 'MySQL Client',
+    // 避免深色系统下启动时先闪一帧白底
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#141414' : '#ffffff',
     // macOS 用 hiddenInset（红绿灯内嵌）；Windows 用 hidden + titleBarOverlay
     // （原生窗口按钮悬浮在 header 右上），两者都靠 header 的 app-region: drag 拖动
     ...(isMac

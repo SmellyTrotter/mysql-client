@@ -46,6 +46,7 @@ export function registerIpcHandlers(): void {
     // 密码留空表示不修改
     const enc = input.password ? cm.encryptPassword(input.password) : undefined
     store.upsertConnection(id, input, enc)
+    store.clearMetadataCache(id)
     await cm.closePool(id)
   })
 
@@ -66,6 +67,8 @@ export function registerIpcHandlers(): void {
   handle('meta:schemas', (connId: string) => store.listCachedSchemas(connId))
 
   handle('meta:tables', (connId: string, schema?: string) => store.listCachedTables(connId, schema))
+
+  handle('meta:serverSchemas', (connId: string) => cm.listServerSchemas(requireConn(connId)))
 
   // ---------- 查询 ----------
   handle('query:run', async (connId: string, sql: string) => {

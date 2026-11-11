@@ -34,10 +34,13 @@ Main (src/main/)  ←  ipcMain.handle 注册于 src/main/ipc.ts
 |---|---|
 | `src/shared/types.ts` | 主进程/渲染层共享类型（ConnectionConfig、TableInfo、SortSpec/FilterSpec…） |
 | `src/shared/sharding.ts` | 分表归组纯函数（`order_0..N` → `order_*` 组，数字排序） |
+| `src/shared/scope.ts` | 连接「库/表范围」解析与 `*` 通配匹配（纯函数） |
 | `src/shared/format.ts` | 时间戳识别转换、JSON 美化（纯函数） |
 | `src/shared/tabs.ts` | Tab LRU 淘汰、短名去重（纯函数） |
 | `src/renderer/src/store/appStore.ts` | 全局状态（zustand）：连接/库表缓存/标签/书签/Tab |
-| `src/renderer/src/store/uiStore.ts` | UI 状态：弹窗开关、侧栏宽度/可见、主题色（localStorage 持久化） |
+| `src/renderer/src/store/uiStore.ts` | UI 状态：弹窗开关、侧栏宽度/可见、主题色/外观/着色强度（localStorage 持久化） |
+| `src/renderer/src/theme.ts` | 主题预设、颜色混合、全套 CSS 变量与 antd 组件 token 生成 |
+| `src/renderer/src/connectionColors.ts` | 连接标识色板与未指定时的自动分配 |
 | `src/renderer/src/components/` | Sidebar（三级树）、DataGrid、SqlQueryView、DdlView、各抽屉弹窗 |
 | `src/renderer/src/api.ts` | `window.api` 引用；**无 Electron 时返回 Mock 数据**（见 dev:web） |
 
@@ -48,11 +51,14 @@ Main (src/main/)  ←  ipcMain.handle 注册于 src/main/ipc.ts
 3. **CRUD 安全底线**：无主键表只读；所有写操作参数化 + 主键定位；写 SQL（含查询窗口的非 SELECT）记入 `sql_log` 表，保留 1 小时。
 4. **性能铁律——不给单元格挂组件**：右键菜单、悬停预览都是**全表共享一个实例**（事件委托），之前每格一个 Dropdown 导致 100 行 × 15 列 ≈ 1500 实例卡死。
 5. **flex 高度/宽度链**：任何"内容撑破不滚动"都是 flex 子项缺 `min-height/min-width: 0`，或某层高度链断了（`.ant-app` 必须 `height: 100%`）。
-6. **无边框窗口拖拽区**：`-webkit-app-region: drag` 的顶栏会在浏览器层截获点击，浮层（抽屉/弹窗/Tooltip）必须显式 `no-drag`。
+6. **无边框窗口拖拽区**：整条顶栏是 `-webkit-app-region: drag`，只有具体的交互控件（按钮、输入、标签、错误提示）与浮层（抽屉/弹窗/Tooltip）显式 `no-drag`。不要把工具栏容器整体设成 `no-drag`：它铺满大半条标题栏，窗口一窄就几乎找不到能拖窗口的空白；`no-drag` 是继承属性，挂在按钮上即可覆盖其所有子元素。
 7. **侧栏保活**：隐藏用 `display:none` 而非卸载，保留滚动位置和展开状态；拖拽宽度过程只改 DOM，松手才写 store。
 8. **密码不落明文**：`safeStorage.encryptString` 加密后 base64 存 SQLite。
 9. **默认排序**：`create_time desc` → `id desc` → 主键升序；列头两个独立箭头直接控制升降序（不走 antd 循环切换）。
 10. **筛选**：列头漏斗，一次一个字段；数字列默认 `=`，其他默认 `LIKE %v%`；参数化下推到主进程。
+11. **连接隔离**：`information_schema.TABLES` 返回的是整个实例上该账号可见的库，多条连接指向同一 host:port:user 时树会完全重复。连接配置带 `schemaScope`（库白名单）与 `tableScope`（表名 `*` 通配，不带 `*` 按前缀匹配），`fetchAllTables` 在库名可精确下推时用 `IN (?)`，表名与带通配符的库名在 JS 侧过滤；空配置保持「显示全部」的旧行为。连接另带 `color`，未指定时按 id 自动分配，侧栏用色点 + 范围标签区分。
+12. **连接编辑即时生效**：`conn:update` 清 `metadata_cache` 并关连接池；`saveConnection` 丢弃该 connId 的前端 `schemasByConn/tableNodesByConn` 后异步重建元数据（新建连接同样自动刷新），刷新失败原因显示在工具栏。连接弹窗会检测「同 host:port:user 且范围相同」并给出提示。
+13. **主题系统**：`theme.ts` 由 `themeColor + appearance(light/dark/system) + accentStrength(soft/normal/vivid)` 派生一套 CSS 变量（`--app-*`），同时喂给自定义 CSS 和 antd `components` token。顶栏渐变、侧栏、树节点/图标、标签页、表格表头与悬停行、分页、菜单、编辑器选区、滚动条、弹窗抽屉标题、单元格类型色都取自这套变量；深色模式走 `darkAlgorithm` + `html[data-app-theme='dark']`。主题预设 18 组，另支持取色器自定义。
 
 ## 本地开发
 
@@ -65,7 +71,7 @@ npm run typecheck    # tsc 双工程（node + web）
 npm run dist         # 打包 dmg（未签名）
 ```
 
-`dev:web` 的 Mock 在 `src/renderer/src/api.ts`，覆盖：两个连接（同超长主机名）、120 张分表、宽表 21 列、JSON/时间戳字段——基本复刻真实痛点场景。**改 UI 后建议用它 + 浏览器自动化实测**，不要盲改。
+`dev:web` 的 Mock 在 `src/renderer/src/api.ts`，覆盖：两个连接（同主机名、不同标识色与库范围）、120 张分表、宽表 21 列、JSON/时间戳字段——基本复刻真实痛点场景。**改 UI 后建议用它 + 浏览器自动化实测**，不要盲改。
 
 ## 已知边界 / TODO
 
@@ -77,4 +83,4 @@ npm run dist         # 打包 dmg（未签名）
 
 ## 测试约定
 
-纯逻辑必须进 `src/shared/` 或 `src/main/db/` 并配 vitest 单测（现有 26 个用例覆盖：分表归组、CRUD SQL 生成、时间戳解析、Tab LRU/标签去重）。涉及 Electron API 的不测。
+纯逻辑必须进 `src/shared/` 或 `src/main/db/` 并配 vitest 单测（覆盖：分表归组、CRUD SQL 生成、时间戳解析、Tab LRU/标签去重、库表范围解析与匹配）。涉及 Electron API 的不测。

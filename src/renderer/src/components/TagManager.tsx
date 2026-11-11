@@ -60,7 +60,7 @@ export default function TagManager() {
       footer={<Button onClick={close}>完成</Button>}
     >
       <Space direction="vertical" style={{ width: '100%' }} size={12}>
-        {tags.length === 0 && <span style={{ color: '#999' }}>还没有标签，先创建一个。</span>}
+        {tags.length === 0 && <span style={{ color: 'var(--app-text-muted)' }}>还没有标签，先创建一个。</span>}
         {tags.map((t) => (
           <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Checkbox checked={assignedIds.has(t.id)} onChange={(e) => void toggle(t.id, e.target.checked)}>
@@ -88,7 +88,7 @@ export default function TagManager() {
             创建并贴上
           </Button>
         </Space.Compact>
-        <span style={{ color: '#999', fontSize: 12 }}>
+        <span style={{ color: 'var(--app-text-muted)', fontSize: 12 }}>
           提示：给分表逻辑组（如 order_*）打标签，整组生效。
         </span>
       </Space>

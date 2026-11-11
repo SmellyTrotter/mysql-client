@@ -64,6 +64,16 @@ function migrate(d: Database.Database): void {
       created_at INTEGER NOT NULL
     );
   `)
+  // 老库增量升级：IF NOT EXISTS 只作用于建表，已存在的表需要逐列补
+  ensureColumn(d, 'connections', 'schema_scope', 'TEXT')
+  ensureColumn(d, 'connections', 'table_scope', 'TEXT')
+}
+
+function ensureColumn(d: Database.Database, table: string, column: string, declaration: string): void {
+  const columns = d.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+  if (!columns.some((c) => c.name === column)) {
+    d.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`)
+  }
 }
 
 // ---------- SQL 执行日志（保留 1 小时） ----------
@@ -106,6 +116,8 @@ export function listConnections(): ConnectionConfig[] {
     database: r.database_name ?? undefined,
     groupName: r.group_name ?? undefined,
     color: r.color ?? undefined,
+    schemaScope: r.schema_scope ?? undefined,
+    tableScope: r.table_scope ?? undefined,
     passwordEnc: r.password_enc ?? undefined
   }))
 }
@@ -113,12 +125,13 @@ export function listConnections(): ConnectionConfig[] {
 export function upsertConnection(id: string, input: ConnectionInput, passwordEnc?: string): void {
   getDb()
     .prepare(
-      `INSERT INTO connections (id, name, host, port, user, password_enc, database_name, group_name, color)
-       VALUES (@id, @name, @host, @port, @user, @passwordEnc, @database, @groupName, @color)
+      `INSERT INTO connections (id, name, host, port, user, password_enc, database_name, group_name, color, schema_scope, table_scope)
+       VALUES (@id, @name, @host, @port, @user, @passwordEnc, @database, @groupName, @color, @schemaScope, @tableScope)
        ON CONFLICT(id) DO UPDATE SET
          name=@name, host=@host, port=@port, user=@user,
          password_enc=COALESCE(@passwordEnc, password_enc),
-         database_name=@database, group_name=@groupName, color=@color`
+         database_name=@database, group_name=@groupName, color=@color,
+         schema_scope=@schemaScope, table_scope=@tableScope`
     )
     .run({
       id,
@@ -129,7 +142,9 @@ export function upsertConnection(id: string, input: ConnectionInput, passwordEnc
       passwordEnc: passwordEnc ?? null,
       database: input.database ?? null,
       groupName: input.groupName ?? null,
-      color: input.color ?? null
+      color: input.color ?? null,
+      schemaScope: input.schemaScope ?? null,
+      tableScope: input.tableScope ?? null
     })
 }
 
@@ -139,6 +154,11 @@ export function deleteConnection(id: string): void {
   d.prepare('DELETE FROM metadata_cache WHERE conn_id = ?').run(id)
   d.prepare('DELETE FROM table_tags WHERE conn_id = ?').run(id)
   d.prepare('DELETE FROM bookmarks WHERE conn_id = ?').run(id)
+}
+
+/** 连接参数变更（尤其是库表范围）后，旧缓存必须作废，否则树上仍是上一次的结果 */
+export function clearMetadataCache(connId: string): void {
+  getDb().prepare('DELETE FROM metadata_cache WHERE conn_id = ?').run(connId)
 }
 
 export function getConnection(id: string): ConnectionConfig | undefined {

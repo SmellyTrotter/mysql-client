@@ -21,14 +21,17 @@ function createMockApi(): Api {
     name: '本地 Mock',
     host: 'public-wlf2-d53-cds-staging-node7.idchb2az2.hb2.kwaicd.com',
     port: 47785,
-    user: 'test_rw'
+    user: 'test_rw',
+    color: '#1677ff'
   }
   const conn2: Omit<ConnectionConfig, 'passwordEnc'> = {
     id: 'mock-2',
     name: '测试环境',
     host: 'public-wlf2-d53-cds-staging-node7.idchb2az2.hb2.kwaicd.com',
     port: 47785,
-    user: 'test_rw'
+    user: 'test_rw',
+    color: '#722ed1',
+    schemaScope: 'analytics'
   }
   const schemas2 = ['analytics']
   const tables2: TableInfo[] = Array.from({ length: 6 }, (_, i) => ({
@@ -79,7 +82,8 @@ function createMockApi(): Api {
       refresh: () => Promise.resolve(tables.length),
       schemas: (connId: string) => Promise.resolve(connId === 'mock-2' ? schemas2 : schemas),
       tables: (connId: string, s?: string) =>
-        Promise.resolve((connId === 'mock-2' ? tables2 : tables).filter((t) => !s || t.schema === s))
+        Promise.resolve((connId === 'mock-2' ? tables2 : tables).filter((t) => !s || t.schema === s)),
+      serverSchemas: (connId: string) => Promise.resolve(connId === 'mock-2' ? schemas2 : schemas)
     },
     query: {
       run: () => Promise.resolve({ fields: ['id'], rows: [{ id: 1 }], elapsedMs: 1 })

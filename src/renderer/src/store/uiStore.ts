@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { AccentStrength, Appearance } from '../theme'
 
 interface UiState {
   connectionDialog: { open: boolean; editId?: string }
@@ -12,6 +13,10 @@ interface UiState {
   siderVisible: boolean
   /** 主题色，持久化 */
   themeColor: string
+  /** 外观模式：浅色 / 深色 / 跟随系统，持久化 */
+  appearance: Appearance
+  /** 主题色着色浓度，持久化 */
+  accentStrength: AccentStrength
   openConnectionDialog: (editId?: string) => void
   closeConnectionDialog: () => void
   openTagManager: (connId: string, schema: string, table: string) => void
@@ -23,6 +28,8 @@ interface UiState {
   setSiderVisible: (v: boolean) => void
   toggleSider: () => void
   setThemeColor: (c: string) => void
+  setAppearance: (a: Appearance) => void
+  setAccentStrength: (s: AccentStrength) => void
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -34,6 +41,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   siderWidth: Number(localStorage.getItem('mysql-client.siderWidth')) || 300,
   siderVisible: localStorage.getItem('mysql-client.siderVisible') !== '0',
   themeColor: localStorage.getItem('mysql-client.themeColor') || '#1677ff',
+  appearance: (localStorage.getItem('mysql-client.appearance') as Appearance) || 'light',
+  accentStrength: (localStorage.getItem('mysql-client.accentStrength') as AccentStrength) || 'normal',
   openConnectionDialog: (editId) => set({ connectionDialog: { open: true, editId } }),
   closeConnectionDialog: () => set({ connectionDialog: { open: false } }),
   openTagManager: (connId, schema, table) => set({ tagTarget: { connId, schema, table } }),
@@ -57,5 +66,13 @@ export const useUiStore = create<UiState>((set, get) => ({
   setThemeColor: (c) => {
     localStorage.setItem('mysql-client.themeColor', c)
     set({ themeColor: c })
+  },
+  setAppearance: (a) => {
+    localStorage.setItem('mysql-client.appearance', a)
+    set({ appearance: a })
+  },
+  setAccentStrength: (s) => {
+    localStorage.setItem('mysql-client.accentStrength', s)
+    set({ accentStrength: s })
   }
 }))

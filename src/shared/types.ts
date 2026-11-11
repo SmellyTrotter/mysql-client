@@ -9,6 +9,10 @@ export interface ConnectionConfig {
   database?: string
   groupName?: string
   color?: string
+  /** 库范围白名单（逗号分隔，支持 * 通配），空 = 显示该实例上全部可见库 */
+  schemaScope?: string
+  /** 表范围白名单（逗号分隔，支持 * 通配，不带 * 时按前缀匹配），空 = 全部表 */
+  tableScope?: string
   /** 密码加密后的 base64（safeStorage），仅在主进程内部使用 */
   passwordEnc?: string
 }
@@ -22,6 +26,8 @@ export interface ConnectionInput {
   database?: string
   groupName?: string
   color?: string
+  schemaScope?: string
+  tableScope?: string
 }
 
 export interface TableInfo {

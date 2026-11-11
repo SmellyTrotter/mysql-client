@@ -31,7 +31,9 @@ const api = {
   metadata: {
     refresh: (connId: string) => invoke<number>('meta:refresh', connId),
     schemas: (connId: string) => invoke<string[]>('meta:schemas', connId),
-    tables: (connId: string, schema?: string) => invoke<TableInfo[]>('meta:tables', connId, schema)
+    tables: (connId: string, schema?: string) => invoke<TableInfo[]>('meta:tables', connId, schema),
+    /** 连接弹窗用：列出该账号可见的业务库，作为「库范围」候选 */
+    serverSchemas: (connId: string) => invoke<string[]>('meta:serverSchemas', connId)
   },
   query: {
     run: (connId: string, sql: string) => invoke<QueryResult>('query:run', connId, sql)

@@ -9,7 +9,9 @@ import {
 } from '@ant-design/icons'
 import type { TableNode } from '../../../shared/types'
 import { nodeName } from '../../../shared/sharding'
+import { scopeSummary } from '../../../shared/scope'
 import { api } from '../api'
+import { autoConnectionColor } from '../connectionColors'
 import { filterNodes, useAppStore } from '../store/appStore'
 import { useUiStore } from '../store/uiStore'
 
@@ -105,12 +107,16 @@ export default function Sidebar() {
 
     return {
       key: `table:${connId}:${schema}.${nodeName(node)}`,
-      icon: logical ? <FolderOutlined /> : <TableOutlined />,
+      icon: logical ? (
+        <FolderOutlined style={{ color: 'var(--app-primary-hover)' }} />
+      ) : (
+        <TableOutlined style={{ color: 'var(--app-primary-hover)' }} />
+      ),
       title,
       children: logical
         ? node.tables.map((t) => ({
             key: `table:${connId}:${schema}.${t.name}`,
-            icon: <TableOutlined />,
+            icon: <TableOutlined style={{ color: 'var(--app-primary-hover)' }} />,
             title: (
               <Dropdown trigger={['contextMenu']} menu={tableMenu(connId, schema, t.name)}>
                 <span className="tree-node-title" onDoubleClick={() => openTable(connId, schema, t.name)}>
@@ -128,9 +134,12 @@ export default function Sidebar() {
   const treeData = useMemo<TreeDataNode[]>(() => {
     return connections.map((conn) => {
       const schemas = schemasByConn[conn.id]
+      const connColor = conn.color || autoConnectionColor(conn.id)
+      const scope = scopeSummary(conn.schemaScope, conn.tableScope)
+      const scoped = !!(conn.schemaScope?.trim() || conn.tableScope?.trim())
       return {
         key: `conn:${conn.id}`,
-        icon: <ApiOutlined />,
+        icon: <ApiOutlined style={{ color: connColor }} />,
         isLeaf: false,
         title: (
           <Dropdown
@@ -140,6 +149,7 @@ export default function Sidebar() {
                 { key: 'query', label: '新建查询' },
                 { key: 'refresh', label: '刷新此连接元数据' },
                 { key: 'edit', label: '编辑连接' },
+                { key: 'scope', label: '设置库表范围…' },
                 { key: 'delete', label: '删除连接', danger: true }
               ],
               onClick: ({ key, domEvent }) => {
@@ -147,7 +157,7 @@ export default function Sidebar() {
                 const firstSchema = (schemasByConn[conn.id] ?? [])[0]
                 if (key === 'query' && firstSchema) openQuery(conn.id, firstSchema)
                 if (key === 'refresh') void refreshMetadata(conn.id)
-                if (key === 'edit') openConnectionDialog(conn.id)
+                if (key === 'edit' || key === 'scope') openConnectionDialog(conn.id)
                 if (key === 'delete') {
                   modal.confirm({
                     title: `删除连接「${conn.name}」？`,
@@ -162,10 +172,32 @@ export default function Sidebar() {
               }
             }}
           >
-            <span className="tree-node-title">
-              <Tooltip title={`${conn.user}@${conn.host}:${conn.port}`} mouseEnterDelay={0.4}>
-                <span className="tree-node-name">{conn.name || conn.host}</span>
+            <span className="tree-node-title tree-node-conn">
+              <Tooltip
+                mouseEnterDelay={0.4}
+                title={
+                  <div className="conn-tooltip">
+                    <div className="conn-tooltip-title">{conn.name || conn.host}</div>
+                    <div>{conn.user}@{conn.host}:{conn.port}</div>
+                    {conn.database && <div>默认库：{conn.database}</div>}
+                    <div>显示范围：{scope}</div>
+                    <div>已缓存 {schemas?.length ?? 0} 个库</div>
+                  </div>
+                }
+              >
+                <span className="conn-identity">
+                  <span
+                    className="conn-dot"
+                    style={{ background: connColor, boxShadow: `0 0 0 3px ${connColor}2b` }}
+                  />
+                  <span className="tree-node-name">{conn.name || conn.host}</span>
+                </span>
               </Tooltip>
+              {scoped && (
+                <Tooltip title={`只显示：${scope}`}>
+                  <span className="conn-scope">{scope}</span>
+                </Tooltip>
+              )}
             </span>
           </Dropdown>
         ),
@@ -175,7 +207,7 @@ export default function Sidebar() {
           const visible = filterNodes(nodes, search, filterTagIds, tableTagsByConn[conn.id] ?? {}, schema)
           return {
             key: `schema:${conn.id}:${schema}`,
-            icon: <DatabaseOutlined />,
+            icon: <DatabaseOutlined style={{ color: 'var(--app-primary-hover)' }} />,
             title: schema,
             isLeaf: false,
             children: loaded ? visible.map((node) => buildTableNode(conn.id, schema, node)) : undefined

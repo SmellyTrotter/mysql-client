@@ -345,7 +345,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
       filtered: appliedFilter?.column === col.name,
       filteredValue: appliedFilter?.column === col.name ? [appliedFilter.value] : null,
       filterIcon: (filtered: boolean) => (
-        <FilterFilled style={{ color: filtered ? 'var(--app-primary, #1677ff)' : undefined }} />
+        <FilterFilled style={{ color: filtered ? 'var(--app-primary)' : undefined }} />
       ),
       filterDropdown: ({ confirm }: FilterDropdownProps) => (
         <ColumnFilterPanel
@@ -445,14 +445,14 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
         {data?.readonly && (
           <Alert type="warning" showIcon message="此表无主键，已切换为只读模式" style={{ padding: '0 8px' }} />
         )}
-        <span style={{ marginLeft: 'auto', color: '#999', fontSize: 12, whiteSpace: 'nowrap' }}>
+        <span style={{ marginLeft: 'auto', color: 'var(--app-text-muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
           {appliedFilter && (
             <Typography.Text type="warning" style={{ fontSize: 12 }}>
               筛选: {appliedFilter.column} {appliedFilter.op === 'like' ? '包含' : '='} {appliedFilter.value} ·{' '}
             </Typography.Text>
           )}
           {effectiveSort && (
-            <Typography.Text style={{ fontSize: 12, color: 'var(--app-primary, #1677ff)' }}>
+            <Typography.Text style={{ fontSize: 12, color: 'var(--app-primary-text)' }}>
               排序: {effectiveSort.column} {effectiveSort.direction === 'desc' ? '↓' : '↑'}
               {!sort && '（默认）'} ·{' '}
             </Typography.Text>
@@ -498,9 +498,10 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
             maxWidth: 480,
             maxHeight: 320,
             overflow: 'auto',
-            background: '#fff',
+            background: 'var(--app-surface-raised)',
+            color: 'var(--app-text)',
             borderRadius: 8,
-            boxShadow: '0 6px 16px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.15)',
+            boxShadow: 'var(--app-shadow), var(--app-shadow-border)',
             padding: '10px 12px',
             pointerEvents: 'none'
           }}
@@ -517,7 +518,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
             {prettyJson(hoverPreview.text)}
           </pre>
           {parseTimestamp(hoverPreview.text) && (
-            <div style={{ marginTop: 6, fontSize: 11, color: '#999' }}>
+            <div style={{ marginTop: 6, fontSize: 11, color: 'var(--app-text-muted)' }}>
               时间戳 → {parseTimestamp(hoverPreview.text)}
             </div>
           )}
@@ -541,9 +542,9 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
               left: Math.min(cellMenu.x, window.innerWidth - 240),
               top: Math.min(cellMenu.y, window.innerHeight - 140),
               zIndex: 101,
-              background: '#fff',
+              background: 'var(--app-surface-raised)',
               borderRadius: 8,
-              boxShadow: '0 6px 16px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.15)',
+              boxShadow: 'var(--app-shadow), var(--app-shadow-border)',
               overflow: 'hidden',
               minWidth: 180
             }}
@@ -608,9 +609,9 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
                 <div key={col.name}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      {col.name} <span style={{ color: '#ccc' }}>{col.type}</span>
+                      {col.name} <span style={{ color: 'var(--app-text-subtle)' }}>{col.type}</span>
                     </Typography.Text>
-                    {changed && <Typography.Text style={{ fontSize: 11, color: '#fa8c16' }}>已修改</Typography.Text>}
+                    {changed && <Typography.Text style={{ fontSize: 11, color: 'var(--app-primary-text)' }}>已修改</Typography.Text>}
                     <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8 }}>
                       {looksJson && (
                         <a
@@ -638,7 +639,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
                     style={{
                       fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
                       fontSize: 12,
-                      background: isNull ? '#f5f5f5' : undefined
+                      background: isNull ? 'var(--app-surface-alt)' : undefined
                     }}
                     onChange={(e) => setDrafts((d) => ({ ...d, [col.name]: e.target.value }))}
                   />
