@@ -2,7 +2,19 @@
 
 macOS 上的 MySQL 桌面客户端。自己用的，按自己的习惯做。
 
-![主界面：左侧连接树，右侧数据网格](assets/screenshot-main.jpg)
+<img src="assets/screenshot-main.jpg" width="760" alt="主界面：左侧连接树，右侧数据网格">
+
+## 目录
+
+- [为什么做这个](#why)
+- [工作效率](#efficiency)：[表名搜索](#search) · [表收藏、表标签](#favorite) · [默认按 create_time 倒序](#sort) · [时间戳自动转换](#timestamp) · [JSON 格式化](#json)
+- [空间利用率](#space)：[标签页管理](#tabs) · [分表自动折叠](#sharding)
+- [MCP：给 AI 补上手脚](#mcp)：[想法由来](#mcp-why) · [怎么用](#mcp-use)
+- [界面](#ui)
+- [安装与运行](#install)
+- [说明](#notes)
+
+<a id="why"></a>
 
 ## 为什么做这个
 
@@ -12,57 +24,76 @@ macOS 上的 MySQL 桌面客户端。自己用的，按自己的习惯做。
 
 后来某次开发的时候萌生一个念头：干脆自己 vibe 一个。把各家顺手的地方拿过来，别扭的地方丢掉，只做自己想要的功能。
 
+<a id="efficiency"></a>
+
 ## 工作效率
+
+<a id="search"></a>
 
 ### 表名搜索
 
 侧栏顶部一个搜索框，输入表名或者表注释，所有连接一起找。库里上千张表的时候，不用一层层展开去翻。
 
+<a id="favorite"></a>
+
 ### 表收藏、表标签
 
 常用的表右键收藏，收进书签抽屉；也可以打标签分组。下次直接点开。
 
-![书签抽屉：收藏的表与标签](assets/screenshot-bookmarks.png)
+<img src="assets/screenshot-bookmarks.png" width="720" alt="书签抽屉：收藏的表与标签">
 
-![表右键菜单：查看 DDL、管理标签、收藏此表](assets/screenshot-context-menu.png)
+<img src="assets/screenshot-context-menu.png" width="520" alt="表右键菜单：查看 DDL、管理标签、收藏此表">
+
+<a id="sort"></a>
 
 ### 默认按 create_time 倒序
 
 打开表就是最新数据在前。没有 create_time 列的退回 id 倒序，省掉每次手动点排序。这张列是索引前导列时无论多少行都排；没有索引且表超过 10 万行，会跳过默认排序避免全表排序，工具栏给提示，点列头仍可手动排。
 
+<a id="timestamp"></a>
+
 ### 时间戳自动转换
 
 单元格里的秒级、毫秒级时间戳直接显示成日期时间，右键可以复制转换后的结果。
 
-![右键复制为时间：1763027230006 → 2025-11-13 17:47:10.006](assets/screenshot-timestamp.png)
+<img src="assets/screenshot-timestamp.png" width="480" alt="右键复制为时间：1763027230006 → 2025-11-13 17:47:10.006">
+
+<a id="json"></a>
 
 ### JSON 格式化
 
 长 JSON 悬停就能看到缩进后的结构，行详情里也能一键格式化，不用对着一整行字符串数括号。
 
-![行详情抽屉：一键格式化 JSON](assets/screenshot-row-detail.jpg)
+<img src="assets/screenshot-row-detail.jpg" width="720" alt="行详情抽屉：一键格式化 JSON">
+
+<a id="space"></a>
 
 ## 空间利用率
+
+<a id="tabs"></a>
 
 ### 标签页管理
 
 表在标签页里打开，上限可以自己设，默认 8 个。开多了自动关掉最久没用的，当前这个不动。⌘W 关的是标签页，不会把整个窗口关掉。
 
-![两行式标签页：同时打开多张表](assets/screenshot-tabs.png)
+<table>
+  <tr>
+    <td><img src="assets/screenshot-tabs.png" width="360" alt="两行式标签页：同时打开多张表"></td>
+    <td><img src="assets/screenshot-maxtabs.png" width="360" alt="设置里调整最大标签页数量"></td>
+  </tr>
+</table>
 
-![设置里调整最大标签页数量](assets/screenshot-maxtabs.png)
+<a id="sharding"></a>
 
 ### 分表自动折叠
 
 `order_0` 到 `order_63` 这种同前缀的数字分表，树里收成一个 `order_*`，展开才看到具体分表，按数字排序。标签打在组上整组生效，不用挨个贴。搜索 `order_17` 也能命中这个组并自动展开。开头那张主界面图里，`archived_data_record_*1000` 就是折叠后的分表组。
 
-## 界面
-
-主题色有 18 组预设，也能自己取色；浅色、深色、跟随系统三种模式，着色强度三档。改动即时生效，记在本地。设置里有一块实时预览，换色前能看到效果。
-
-![外观设置：主题色、着色强度与实时预览](assets/screenshot-theme.jpg)
+<a id="mcp"></a>
 
 ## MCP：给 AI 补上手脚
+
+<a id="mcp-why"></a>
 
 现在的开发流程里 AI 已经参与了大半：一起讨论 spec、细化 plan、拆成一个个 task 执行并自测。到提测之前，大多数活它都能自己完成，单测尤其如此。
 
@@ -70,11 +101,13 @@ macOS 上的 MySQL 桌面客户端。自己用的，按自己的习惯做。
 
 这个客户端连的都是测试库，正好把它通过 MCP 开放给本地 agent。于是 AI 自测时能自己去查：该 insert 的记录有没有进去、该 update 的字段改没改对、不该留的数据是不是删干净了；上线前还能看一眼测试环境的 DDL 和索引合不合适。它在开发阶段多了信息和手段，不用每一步都等我截图确认。
 
+<a id="mcp-use"></a>
+
 ### 怎么用
 
 设置 →「MCP 服务」里打开开关，复制配置进你的 MCP client。推荐 Streamable HTTP，旧版 client 用 SSE。
 
-![设置里的 MCP 服务页：开关、端口、协议切换与一键复制配置](assets/screenshot-mcp-settings.jpg)
+<img src="assets/screenshot-mcp-settings.jpg" width="720" alt="设置里的 MCP 服务页：开关、端口、协议切换与一键复制配置">
 
 ```json
 {
@@ -88,13 +121,26 @@ macOS 上的 MySQL 桌面客户端。自己用的，按自己的习惯做。
 
 给 agent 暴露四个工具：`list_connections` 列连接、`list_tables` 列库表、`describe_table` 看字段和表说明、`query` 执行只读 SELECT（自动加 LIMIT，按连接的库表范围校验）。
 
-![agent 用 MCP 列出连接并按分表组检索表](assets/mcp-demo-list.jpg)
-
-![agent 用 MCP 查表结构与最新数据](assets/mcp-demo-query.png)
+<table>
+  <tr>
+    <td><img src="assets/mcp-demo-list.jpg" width="340" alt="agent 用 MCP 列出连接并按分表组检索表"></td>
+    <td><img src="assets/mcp-demo-query.png" width="340" alt="agent 用 MCP 查表结构与最新数据"></td>
+  </tr>
+</table>
 
 表说明在侧栏右键表或分表组填写：这张表干什么、什么场景用、存了什么。分表组写一次整组生效，agent 查表时会一并拿到。
 
 服务只监听 127.0.0.1，token 与 Host 双重校验；写操作暂不开放。客户端关掉，MCP 也跟着下线。
+
+<a id="ui"></a>
+
+## 界面
+
+主题色有 18 组预设，也能自己取色；浅色、深色、跟随系统三种模式，着色强度三档。改动即时生效，记在本地。设置里有一块实时预览，换色前能看到效果。
+
+<img src="assets/screenshot-theme.jpg" width="720" alt="外观设置：主题色、着色强度与实时预览">
+
+<a id="install"></a>
 
 ## 安装与运行
 
@@ -111,6 +157,8 @@ npm run dist       # 打包成未签名的 dmg
 顶部「新建连接」填主机、端口、账号、密码，可以先测试连接；点「刷新元数据」拉取库表；然后双击表名就能看数据。密码用系统钥匙串加密后存在本地。
 
 只调界面可以跑 `npm run dev:web`，浏览器打开 `localhost:5199`，加载的是 Mock 数据，不含真实连接信息。
+
+<a id="notes"></a>
 
 ## 说明
 
