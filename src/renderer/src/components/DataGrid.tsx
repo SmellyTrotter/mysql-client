@@ -167,17 +167,10 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     [data]
   )
 
-  /** 用户未手动排序时的默认排序：create_time desc > id desc */
-  const defaultSort = useMemo<SortSpec | undefined>(() => {
-    const cols = data?.columns ?? []
-    if (cols.some((c) => c.name === 'create_time')) return { column: 'create_time', direction: 'desc' }
-    if (cols.some((c) => c.name === 'id')) return { column: 'id', direction: 'desc' }
-    return undefined
-  }, [data])
+  /** 实际生效的排序由主进程决定（默认排序可能被跳过），用户手动排序立即覆盖 */
+  const effectiveSort = data?.appliedSort ?? undefined
 
-  const effectiveSort = sort ?? defaultSort
-
-  /** 点击表头箭头：直接升/降序；点当前生效方向则取消（回退默认排序） */
+  /** 点击表头箭头：直接升/降序；点当前生效方向则取消（回退主进程判断） */
   function toggleSort(column: string, direction: 'asc' | 'desc') {
     setPage(1)
     if (effectiveSort?.column === column && effectiveSort.direction === direction) {
@@ -192,7 +185,8 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
     setLoading(true)
     setError(null)
     try {
-      const result = await api.table.data(connId, schema, table, page, pageSize, effectiveSort, appliedFilter)
+      // 只把用户手动排序交给主进程；默认排序由主进程按行数/索引判断
+      const result = await api.table.data(connId, schema, table, page, pageSize, sort, appliedFilter)
       setData(result)
     } catch (err) {
       setError((err as Error).message)
@@ -200,7 +194,7 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connId, schema, table, page, pageSize, effectiveSort?.column, effectiveSort?.direction, appliedFilter])
+  }, [connId, schema, table, page, pageSize, sort?.column, sort?.direction, appliedFilter])
 
   useEffect(() => {
     void load()
@@ -456,6 +450,13 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
               排序: {effectiveSort.column} {effectiveSort.direction === 'desc' ? '↓' : '↑'}
               {!sort && '（默认）'} ·{' '}
             </Typography.Text>
+          )}
+          {data?.defaultSortNote && (
+            <Tooltip title={data.defaultSortNote}>
+              <Typography.Text type="warning" style={{ fontSize: 12 }}>
+                未自动排序 ·{' '}
+              </Typography.Text>
+            </Tooltip>
           )}
           共 {data?.total ?? '-'} 行 · 双击单元格编辑
         </span>

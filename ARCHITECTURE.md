@@ -21,9 +21,10 @@ Renderer (React)  ←── window.api (contextBridge)  ──  Preload (src/pre
         ↑↓ ipcRenderer.invoke('channel', ...args)  →  ApiResult<T> = { ok, data?, error? }
 Main (src/main/)  ←  ipcMain.handle 注册于 src/main/ipc.ts
   ├─ db/connectionManager.ts   mysql2 连接池、查询、元数据拉取（safeStorage 解密密码）
-  ├─ db/store.ts               better-sqlite3：connections / metadata_cache / tags / table_tags / bookmarks / sql_log
+  ├─ db/store.ts               better-sqlite3：connections / metadata_cache / tags / table_tags / bookmarks / sql_log / table_descriptions / app_settings
   ├─ db/crud.ts                参数化 INSERT/UPDATE/DELETE SQL 生成（纯函数）
-  └─ index.ts                  窗口创建、⌘W 拦截转发、SQL 日志定时清理
+  ├─ mcp/server.ts             内嵌 MCP server：HTTP server 上并存 Streamable HTTP(/mcp) 与 SSE(/sse+/messages) + 四个只读工具
+  └─ index.ts                  窗口创建、⌘W 拦截转发、SQL 日志定时清理、MCP 服务启停
 ```
 
 约定：**所有 IPC handler 用 `handle()` 包装**，异常统一转 `{ ok: false, error }`；preload 侧 `invoke()` 解包后 throw。新增能力 = shared/types.ts 加类型 → ipc.ts 加 handler → preload 加方法 → 渲染层调用。
@@ -35,6 +36,7 @@ Main (src/main/)  ←  ipcMain.handle 注册于 src/main/ipc.ts
 | `src/shared/types.ts` | 主进程/渲染层共享类型（ConnectionConfig、TableInfo、SortSpec/FilterSpec…） |
 | `src/shared/sharding.ts` | 分表归组纯函数（`order_0..N` → `order_*` 组，数字排序） |
 | `src/shared/scope.ts` | 连接「库/表范围」解析与 `*` 通配匹配（纯函数） |
+| `src/shared/sqlGuard.ts` | MCP 查询安全边界：只读校验、scope 校验、强制 LIMIT（纯函数） |
 | `src/shared/format.ts` | 时间戳识别转换、JSON 美化（纯函数） |
 | `src/shared/tabs.ts` | Tab LRU 淘汰、短名去重（纯函数） |
 | `src/renderer/src/store/appStore.ts` | 全局状态（zustand）：连接/库表缓存/标签/书签/Tab |
@@ -59,6 +61,9 @@ Main (src/main/)  ←  ipcMain.handle 注册于 src/main/ipc.ts
 11. **连接隔离**：`information_schema.TABLES` 返回的是整个实例上该账号可见的库，多条连接指向同一 host:port:user 时树会完全重复。连接配置带 `schemaScope`（库白名单）与 `tableScope`（表名 `*` 通配，不带 `*` 按前缀匹配），`fetchAllTables` 在库名可精确下推时用 `IN (?)`，表名与带通配符的库名在 JS 侧过滤；空配置保持「显示全部」的旧行为。连接另带 `color`，未指定时按 id 自动分配，侧栏用色点 + 范围标签区分。
 12. **连接编辑即时生效**：`conn:update` 清 `metadata_cache` 并关连接池；`saveConnection` 丢弃该 connId 的前端 `schemasByConn/tableNodesByConn` 后异步重建元数据（新建连接同样自动刷新），刷新失败原因显示在工具栏。连接弹窗会检测「同 host:port:user 且范围相同」并给出提示。
 13. **主题系统**：`theme.ts` 由 `themeColor + appearance(light/dark/system) + accentStrength(soft/normal/vivid)` 派生一套 CSS 变量（`--app-*`），同时喂给自定义 CSS 和 antd `components` token。顶栏渐变、侧栏、树节点/图标、标签页、表格表头与悬停行、分页、菜单、编辑器选区、滚动条、弹窗抽屉标题、单元格类型色都取自这套变量；深色模式走 `darkAlgorithm` + `html[data-app-theme='dark']`。主题预设 18 组，另支持取色器自定义。
+14. **MCP 内嵌在 Electron 主进程**：不能做成独立 Node 进程——密码用 Electron `safeStorage` 加密，只有主进程能解密。同一个 HTTP server 上挂两种 transport：Streamable HTTP（单端点 `/mcp`，stateful，按 `mcp-session-id` 路由，DELETE 关会话）与 SSE（`/sse` + `/messages`）。只绑 127.0.0.1，两种端点都校验 token，Host 头白名单防 DNS rebinding。**每个会话要 new 一个 `McpServer`**：SDK 规定一个 transport 只能被一个 server 独占。首期只注册四个只读工具，写操作后续单独设计。
+15. **表描述按分表组存**：`table_descriptions` 主键是 `(conn_id, schema_name, table_group)`，`table_group` 用 `nodeName()` 得到的逻辑组名（`order_*`），一次标注覆盖整组，不给 1000 张分表重复写。`list_tables` / `describe_table` 把描述一并返回给 AI；描述只在本机 SQLite，不导出、不进 git。
+16. **MCP 查询必须走 AST 校验**：`sqlGuard.ts` 用 `node-sql-parser` 而不是正则，拒绝多语句与非 SELECT、提取引用表按 `scope.ts` 校验、自动追加 LIMIT。已有 LIMIT 的 SQL 原样放行——调用方主动限量不会拖库。
 
 ## 本地开发
 
@@ -83,4 +88,4 @@ npm run dist         # 打包 dmg（未签名）
 
 ## 测试约定
 
-纯逻辑必须进 `src/shared/` 或 `src/main/db/` 并配 vitest 单测（覆盖：分表归组、CRUD SQL 生成、时间戳解析、Tab LRU/标签去重、库表范围解析与匹配）。涉及 Electron API 的不测。
+纯逻辑必须进 `src/shared/` 或 `src/main/db/` 并配 vitest 单测（覆盖：分表归组、CRUD SQL 生成、时间戳解析、Tab LRU/标签去重、库表范围解析与匹配、MCP 查询安全校验）。MCP 工具协议层用 SDK 的 `InMemoryTransport` + mock 主进程依赖测试（`server.test.ts`），Streamable HTTP 的 HTTP 层（token / Host / initialize 握手 / 工具调用）用真实 HTTP server + SDK client 测（`http.test.ts`）。涉及 Electron API 的不测。

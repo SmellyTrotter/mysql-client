@@ -760,6 +760,46 @@ a:hover {
   color: var(--app-text-muted);
 }
 
+/* ---------- 表描述标记 ---------- */
+
+.desc-marker {
+  color: var(--app-primary);
+  font-size: 11px;
+  margin-inline-end: 6px;
+}
+
+/* ---------- MCP 配置展示 ---------- */
+
+.settings-divider {
+  height: 1px;
+  background: var(--app-border);
+  margin: 16px 0;
+}
+
+.mcp-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mcp-config-code {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--app-surface-alt);
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  color: var(--app-text-main);
+  font-family: var(--font-mono, 'SFMono-Regular', Menlo, monospace);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
 /* ---------- 深色模式微调 ---------- */
 
 html[data-app-theme='dark'] .app-header {

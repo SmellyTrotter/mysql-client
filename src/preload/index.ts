@@ -6,10 +6,12 @@ import type {
   ConnectionConfig,
   ConnectionInput,
   FilterSpec,
+  McpStatus,
   QueryResult,
   SortSpec,
   SqlLogEntry,
   TableDataResult,
+  TableDescription,
   TableInfo,
   Tag
 } from '../shared/types'
@@ -69,6 +71,22 @@ const api = {
   },
   logs: {
     list: (connId?: string) => invoke<SqlLogEntry[]>('log:list', connId)
+  },
+  descriptions: {
+    list: (connId?: string) => invoke<TableDescription[]>('desc:list', connId),
+    get: (connId: string, schema: string, tableGroup: string) =>
+      invoke<TableDescription | null>('desc:get', connId, schema, tableGroup),
+    save: (connId: string, schema: string, tableGroup: string, fields: { purpose: string; scenarios: string; content: string }) =>
+      invoke<TableDescription>('desc:save', connId, schema, tableGroup, fields),
+    remove: (connId: string, schema: string, tableGroup: string) =>
+      invoke<void>('desc:delete', connId, schema, tableGroup),
+    groups: (connId: string) => invoke<string[]>('desc:groups', connId)
+  },
+  mcp: {
+    status: () => invoke<McpStatus & { running: boolean }>('mcp:status'),
+    setEnabled: (enabled: boolean) => invoke<void>('mcp:setEnabled', enabled),
+    setPort: (port: number) => invoke<void>('mcp:setPort', port),
+    regenerateToken: () => invoke<McpStatus>('mcp:regenerateToken')
   },
   events: {
     /** 主进程转发的 ⌘W：关闭当前标签页 */

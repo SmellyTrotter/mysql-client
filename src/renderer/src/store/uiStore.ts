@@ -1,9 +1,13 @@
 import { create } from 'zustand'
 import type { AccentStrength, Appearance } from '../theme'
+import { api } from '../api'
 
 interface UiState {
   connectionDialog: { open: boolean; editId?: string }
   tagTarget: { connId: string; schema: string; table: string } | null
+  descriptionTarget: { connId: string; schema: string; tableGroup: string } | null
+  /** 已写描述的 connId|schema.group 集合，侧栏显示小标记 */
+  describedKeys: string[]
   bookmarksOpen: boolean
   sqlLogOpen: boolean
   settingsOpen: boolean
@@ -21,6 +25,9 @@ interface UiState {
   closeConnectionDialog: () => void
   openTagManager: (connId: string, schema: string, table: string) => void
   closeTagManager: () => void
+  openDescription: (connId: string, schema: string, tableGroup: string) => void
+  closeDescription: () => void
+  reloadDescriptions: () => Promise<void>
   setBookmarksOpen: (open: boolean) => void
   setSqlLogOpen: (open: boolean) => void
   setSettingsOpen: (open: boolean) => void
@@ -35,6 +42,8 @@ interface UiState {
 export const useUiStore = create<UiState>((set, get) => ({
   connectionDialog: { open: false },
   tagTarget: null,
+  descriptionTarget: null,
+  describedKeys: [],
   bookmarksOpen: false,
   sqlLogOpen: false,
   settingsOpen: false,
@@ -47,6 +56,12 @@ export const useUiStore = create<UiState>((set, get) => ({
   closeConnectionDialog: () => set({ connectionDialog: { open: false } }),
   openTagManager: (connId, schema, table) => set({ tagTarget: { connId, schema, table } }),
   closeTagManager: () => set({ tagTarget: null }),
+  openDescription: (connId, schema, tableGroup) => set({ descriptionTarget: { connId, schema, tableGroup } }),
+  closeDescription: () => set({ descriptionTarget: null }),
+  reloadDescriptions: async () => {
+    const list = await api.descriptions.list()
+    set({ describedKeys: list.map((d) => `${d.connId}|${d.schema}.${d.tableGroup}`) })
+  },
   setBookmarksOpen: (open) => set({ bookmarksOpen: open }),
   setSqlLogOpen: (open) => set({ sqlLogOpen: open }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),

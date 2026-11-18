@@ -1,5 +1,5 @@
 import type { Api } from '../../preload/index'
-import type { ConnectionConfig, TableDataResult, TableInfo } from '../../shared/types'
+import type { ConnectionConfig, SortSpec, TableDataResult, TableInfo } from '../../shared/types'
 
 /**
  * 浏览器调试 Mock：当 window.api 不存在（纯 vite 起渲染层、无 Electron）时，
@@ -65,7 +65,8 @@ function createMockApi(): Api {
     total: 100000,
     page: 1,
     pageSize: 100,
-    readonly: false
+    readonly: false,
+    appliedSort: { column: 'create_time', direction: 'desc' }
   }
 
   const noop = () => Promise.resolve(undefined)
@@ -89,7 +90,8 @@ function createMockApi(): Api {
       run: () => Promise.resolve({ fields: ['id'], rows: [{ id: 1 }], elapsedMs: 1 })
     },
     table: {
-      data: () => Promise.resolve(grid),
+      data: (_connId: string, _schema: string, _table: string, _page: number, _pageSize: number, sort?: SortSpec) =>
+        Promise.resolve({ ...grid, appliedSort: sort ?? { column: 'create_time', direction: 'desc' } }),
       columns: () => Promise.resolve(grid.columns),
       ddl: () => Promise.resolve('CREATE TABLE `order_0` (\n  `id` bigint NOT NULL AUTO_INCREMENT,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB;'),
       update: () => Promise.resolve(1),
@@ -112,6 +114,20 @@ function createMockApi(): Api {
     },
     logs: {
       list: () => Promise.resolve([])
+    },
+    descriptions: {
+      list: () => Promise.resolve([]),
+      get: () => Promise.resolve(null),
+      save: (connId: string, schema: string, tableGroup: string, fields: { purpose: string; scenarios: string; content: string }) =>
+        Promise.resolve({ connId, schema, tableGroup, ...fields, updatedAt: Date.now() }),
+      remove: () => noop(),
+      groups: () => Promise.resolve([])
+    },
+    mcp: {
+      status: () => Promise.resolve({ enabled: true, port: 37812, token: 'mock-token', sseUrl: 'http://127.0.0.1:37812/sse?token=mock-token', streamableUrl: 'http://127.0.0.1:37812/mcp?token=mock-token', running: true }),
+      setEnabled: () => noop(),
+      setPort: () => noop(),
+      regenerateToken: () => Promise.resolve({ enabled: true, port: 37812, token: 'mock-token', sseUrl: 'http://127.0.0.1:37812/sse?token=mock-token', streamableUrl: 'http://127.0.0.1:37812/mcp?token=mock-token' })
     },
     events: {
       onCloseActiveTab: () => () => undefined

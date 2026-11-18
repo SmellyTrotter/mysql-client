@@ -3,6 +3,7 @@ import { Dropdown, Empty, Input, Space, Tag as AntTag, Tooltip, Tree, App as Ant
 import type { TreeDataNode } from 'antd'
 import {
   ApiOutlined,
+  BookOutlined,
   DatabaseOutlined,
   FolderOutlined,
   TableOutlined
@@ -37,6 +38,13 @@ export default function Sidebar() {
   const reloadBookmarks = useAppStore((s) => s.reloadBookmarks)
   const openConnectionDialog = useUiStore((s) => s.openConnectionDialog)
   const openTagManager = useUiStore((s) => s.openTagManager)
+  const openDescription = useUiStore((s) => s.openDescription)
+  const describedKeys = useUiStore((s) => s.describedKeys)
+  const reloadDescriptions = useUiStore((s) => s.reloadDescriptions)
+
+  useEffect(() => {
+    void reloadDescriptions()
+  }, [reloadDescriptions])
 
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
 
@@ -47,6 +55,7 @@ export default function Sidebar() {
         { key: 'open', label: '打开表' },
         { key: 'query', label: '对此表新建查询' },
         { key: 'ddl', label: '查看 DDL' },
+        { key: 'description', label: '编辑表描述（for MCP Server）' },
         { key: 'tags', label: '管理标签' },
         { key: 'bookmark', label: '收藏此表' }
       ],
@@ -55,6 +64,7 @@ export default function Sidebar() {
         if (key === 'open') openTable(connId, schema, table)
         if (key === 'query') openQuery(connId, schema, `SELECT * FROM \`${schema}\`.\`${table}\` LIMIT 100;`)
         if (key === 'ddl') openDdl(connId, schema, table)
+        if (key === 'description') openDescription(connId, schema, tagsTarget ?? table)
         if (key === 'tags') openTagManager(connId, schema, tagsTarget ?? table)
         if (key === 'bookmark') {
           void api.bookmarks
@@ -68,8 +78,9 @@ export default function Sidebar() {
 
   function buildTableNode(connId: string, schema: string, node: TableNode): TreeDataNode {
     const logical = node.logical
-    const tagList = tableTagsByConn[connId]?.[`${schema}.${nodeName(node)}`] ?? []
-    const title = (
+  const tagList = tableTagsByConn[connId]?.[`${schema}.${nodeName(node)}`] ?? []
+  const described = describedKeys.includes(`${connId}|${schema}.${nodeName(node)}`)
+  const title = (
       <Dropdown
         trigger={['contextMenu']}
         menu={
@@ -78,6 +89,7 @@ export default function Sidebar() {
                 items: [
                   { key: 'open-first', label: '打开第一张分表' },
                   { key: 'ddl', label: '查看 DDL' },
+                  { key: 'description', label: '编辑整组描述（给 AI 看）' },
                   { key: 'tags', label: '管理标签（整组生效）' }
                 ],
                 onClick: ({ key, domEvent }: { key: string; domEvent: React.SyntheticEvent }) => {
@@ -85,6 +97,7 @@ export default function Sidebar() {
                   const firstTable = node.tables[0].name
                   if (key === 'open-first') openTable(connId, schema, firstTable)
                   if (key === 'ddl') openDdl(connId, schema, firstTable)
+                  if (key === 'description') openDescription(connId, schema, nodeName(node))
                   if (key === 'tags') openTagManager(connId, schema, nodeName(node))
                 }
               }
@@ -96,6 +109,11 @@ export default function Sidebar() {
             <span className="tree-node-name">{nodeName(node)}</span>
           </Tooltip>
           {logical && <span className="shard-count">×{node.tables.length}</span>}
+          {described && (
+            <Tooltip title="已填写 AI 描述，MCP 可见">
+              <BookOutlined className="desc-marker" />
+            </Tooltip>
+          )}
           {tagList.map((t) => (
             <AntTag key={t.id} color={t.color} style={{ marginInlineEnd: 0, fontSize: 11, lineHeight: '16px' }}>
               {t.name}

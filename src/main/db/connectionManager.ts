@@ -11,6 +11,7 @@ import type {
 } from '../../shared/types'
 import { quoteIdent } from './crud'
 import { matchesScope, parseScopeList } from '../../shared/scope'
+import { pickDefaultSort, shouldApplyDefaultSort } from '../../shared/defaultSort'
 
 const SYSTEM_SCHEMAS = ['mysql', 'sys', 'information_schema', 'performance_schema']
 const pools = new Map<string, Pool>()
@@ -157,6 +158,22 @@ export async function fetchDdl(config: ConnectionConfig, schema: string, table: 
   return row['Create Table'] ?? row['Create View'] ?? ''
 }
 
+/** 候选列是否为某个索引的前导列（ORDER BY 能走索引的前提） */
+async function isLeadingIndexColumn(
+  config: ConnectionConfig,
+  schema: string,
+  table: string,
+  column: string
+): Promise<boolean> {
+  const [rows] = await getPool(config).query(
+    `SELECT 1 FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND SEQ_IN_INDEX = 1
+     LIMIT 1`,
+    [schema, table, column]
+  )
+  return (rows as unknown[]).length > 0
+}
+
 // ---------- 表数据 ----------
 
 export async function fetchTableData(
@@ -172,12 +189,6 @@ export async function fetchTableData(
   const columns = await fetchColumns(config, schema, table)
   const pkColumns = columns.filter((c) => c.isPrimary)
 
-  const orderBy = sort
-    ? `ORDER BY ${quoteIdent(sort.column)} ${sort.direction === 'desc' ? 'DESC' : 'ASC'}`
-    : pkColumns.length > 0
-      ? `ORDER BY ${pkColumns.map((c) => quoteIdent(c.name)).join(', ')}`
-      : ''
-
   const params: unknown[] = []
   let where = ''
   if (filter && filter.value.trim() !== '') {
@@ -188,14 +199,44 @@ export async function fetchTableData(
   }
 
   const qualified = `${quoteIdent(schema)}.${quoteIdent(table)}`
-  // 数据与总数并行查询，缩短打开表的等待
+  const countSql = `SELECT COUNT(*) AS cnt FROM ${qualified} ${where}`
+
+  // 用户主动排序：无条件照做；否则判断是否应用默认排序
+  let appliedSort: SortSpec | null = sort ?? null
+  let defaultSortNote: string | undefined
+  let preCount: number | undefined
+  if (!sort) {
+    const candidate = pickDefaultSort(columns)
+    if (candidate) {
+      const indexed = await isLeadingIndexColumn(config, schema, table, candidate.column)
+      // 无索引时才需要行数来判断；有索引时无需预先 COUNT，省一次查询
+      if (!indexed) preCount = Number(((await pool.query(countSql, params))[0] as any[])[0].cnt)
+      if (shouldApplyDefaultSort({ indexed, total: preCount ?? 0 })) {
+        appliedSort = candidate
+      } else {
+        defaultSortNote = `${candidate.column} 无索引且超过 10 万行，为避免全表排序已跳过默认排序`
+      }
+    }
+  }
+
+  const orderBy = appliedSort
+    ? `ORDER BY ${quoteIdent(appliedSort.column)} ${appliedSort.direction === 'desc' ? 'DESC' : 'ASC'}`
+    : pkColumns.length > 0
+      ? `ORDER BY ${pkColumns.map((c) => quoteIdent(c.name)).join(', ')}`
+      : ''
+
+  // 数据与总数并行查询，缩短打开表的等待；预查过总数则直接复用
+  const countPromise =
+    preCount === undefined
+      ? pool.query(countSql, params)
+      : Promise.resolve([[{ cnt: preCount }]])
   const [[rows], [countRows]] = await Promise.all([
     pool.query(`SELECT * FROM ${qualified} ${where} ${orderBy} LIMIT ? OFFSET ?`, [
       ...params,
       pageSize,
       (page - 1) * pageSize
     ]),
-    pool.query(`SELECT COUNT(*) AS cnt FROM ${qualified} ${where}`, params)
+    countPromise
   ])
 
   return {
@@ -204,7 +245,9 @@ export async function fetchTableData(
     total: Number((countRows as any[])[0].cnt),
     page,
     pageSize,
-    readonly: pkColumns.length === 0
+    readonly: pkColumns.length === 0,
+    appliedSort,
+    defaultSortNote
   }
 }
 

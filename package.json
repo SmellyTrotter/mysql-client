@@ -22,8 +22,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "better-sqlite3": "^11.10.0",
-    "mysql2": "^3.14.1"
+    "mysql2": "^3.14.1",
+    "node-sql-parser": "^5.4.0"
   },
   "devDependencies": {
     "@ant-design/icons": "^5.6.1",

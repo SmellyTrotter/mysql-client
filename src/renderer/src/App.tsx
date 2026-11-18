@@ -9,6 +9,7 @@ import Sidebar from './components/Sidebar'
 import TabsView from './components/TabsView'
 import ConnectionDialog from './components/ConnectionDialog'
 import TagManager from './components/TagManager'
+import DescriptionModal from './components/DescriptionModal'
 import BookmarksDrawer from './components/BookmarksDrawer'
 import SqlLogDrawer from './components/SqlLogDrawer'
 import SettingsModal from './components/SettingsModal'
@@ -127,6 +128,7 @@ export default function App() {
           </Layout>
           <ConnectionDialog />
           <TagManager />
+          <DescriptionModal />
           <BookmarksDrawer />
           <SqlLogDrawer />
           <SettingsModal />

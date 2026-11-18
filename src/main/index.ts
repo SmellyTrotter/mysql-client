@@ -3,6 +3,7 @@ import path from 'node:path'
 import { registerIpcHandlers } from './ipc'
 import { closeAllPools } from './db/connectionManager'
 import { cleanupSqlLogs } from './db/store'
+import { startMcpServer, stopMcpServer } from './mcp/server'
 
 function createWindow(): void {
   const isMac = process.platform === 'darwin'
@@ -50,6 +51,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerIpcHandlers()
+  startMcpServer()
   createWindow()
   // SQL 日志每小时清理一次
   setInterval(cleanupSqlLogs, 60 * 60 * 1000).unref()
@@ -64,5 +66,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  stopMcpServer()
   void closeAllPools()
 })

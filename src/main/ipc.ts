@@ -4,6 +4,7 @@ import type { ConnectionInput, FilterSpec, SortSpec } from '../shared/types'
 import * as store from './db/store'
 import * as cm from './db/connectionManager'
 import { buildDelete, buildInsert, buildUpdate } from './db/crud'
+import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/server'
 
 function requireConn(id: string) {
   const config = store.getConnection(id)
@@ -136,4 +137,37 @@ export function registerIpcHandlers(): void {
     store.createBookmark(b)
   )
   handle('bm:delete', (id: number) => store.deleteBookmark(id))
+
+  // ---------- 表描述（给 MCP / AI 理解表语义） ----------
+  handle('desc:list', (connId?: string) => store.listDescriptions(connId))
+  handle('desc:get', (connId: string, schema: string, tableGroup: string) =>
+    store.getDescription(connId, schema, tableGroup) ?? null
+  )
+  handle(
+    'desc:save',
+    (connId: string, schema: string, tableGroup: string, fields: { purpose: string; scenarios: string; content: string }) =>
+      store.saveDescription(connId, schema, tableGroup, fields)
+  )
+  handle('desc:delete', (connId: string, schema: string, tableGroup: string) =>
+    store.deleteDescription(connId, schema, tableGroup)
+  )
+  handle('desc:groups', (connId: string) => store.listDescribedGroups(connId))
+
+  // ---------- MCP 服务 ----------
+  handle('mcp:status', () => ({ ...store.getMcpStatus(), running: isMcpRunning() }))
+  handle('mcp:setEnabled', (enabled: boolean) => {
+    store.setSetting(store.MCP_SETTINGS.enabled, enabled ? 'true' : 'false')
+    if (enabled) startMcpServer()
+    else stopMcpServer()
+  })
+  handle('mcp:setPort', (port: number) => {
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('端口需在 1024~65535 之间')
+    store.setSetting(store.MCP_SETTINGS.port, String(port))
+    if (store.getMcpStatus().enabled) startMcpServer()
+  })
+  handle('mcp:regenerateToken', () => {
+    store.setSetting(store.MCP_SETTINGS.token, randomUUID().replace(/-/g, ''))
+    if (store.getMcpStatus().enabled) startMcpServer()
+    return store.getMcpStatus()
+  })
 }

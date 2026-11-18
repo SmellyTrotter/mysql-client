@@ -60,6 +60,10 @@ export interface TableDataResult {
   pageSize: number
   /** 无主键时为 true，渲染层据此进入只读模式 */
   readonly: boolean
+  /** 实际生效的排序；null 表示没排序（默认排序可能被跳过） */
+  appliedSort: SortSpec | null
+  /** 默认排序被跳过的原因，供界面提示 */
+  defaultSortNote?: string
 }
 
 export interface QueryResult {
@@ -109,6 +113,32 @@ export interface SqlLogEntry {
   /** grid-insert / grid-update / grid-delete / query */
   source: string
   createdAt: number
+}
+
+/** 用户为「库 + 分表组/单表」写的三段语义说明，供 AI 理解表用途 */
+export interface TableDescription {
+  connId: string
+  schema: string
+  /** 逻辑组名（order_*）或普通表名 */
+  tableGroup: string
+  /** 这张表是干什么的 */
+  purpose: string
+  /** 什么场景下会用到 */
+  scenarios: string
+  /** 表里存了什么 */
+  content: string
+  updatedAt: number
+}
+
+/** MCP 服务状态，设置弹窗展示与一键复制用 */
+export interface McpStatus {
+  enabled: boolean
+  port: number
+  /** SSE 端点完整 URL（含 token） */
+  sseUrl: string
+  /** Streamable HTTP 端点完整 URL（含 token） */
+  streamableUrl: string
+  token: string
 }
 
 export interface ApiResult<T> {

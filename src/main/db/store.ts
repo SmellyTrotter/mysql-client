@@ -1,7 +1,17 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'node:path'
-import type { Bookmark, ConnectionConfig, ConnectionInput, SqlLogEntry, TableInfo, Tag } from '../../shared/types'
+import type {
+  Bookmark,
+  ConnectionConfig,
+  ConnectionInput,
+  McpStatus,
+  SqlLogEntry,
+  TableDescription,
+  TableInfo,
+  Tag
+} from '../../shared/types'
+import { randomUUID } from 'node:crypto'
 
 let db: Database.Database | null = null
 
@@ -62,6 +72,20 @@ function migrate(d: Database.Database): void {
       sql_text TEXT NOT NULL,
       source TEXT NOT NULL,
       created_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS table_descriptions (
+      conn_id TEXT NOT NULL,
+      schema_name TEXT NOT NULL,
+      table_group TEXT NOT NULL,
+      purpose TEXT NOT NULL DEFAULT '',
+      scenarios TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (conn_id, schema_name, table_group)
+    );
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     );
   `)
   // 老库增量升级：IF NOT EXISTS 只作用于建表，已存在的表需要逐列补
@@ -154,6 +178,7 @@ export function deleteConnection(id: string): void {
   d.prepare('DELETE FROM metadata_cache WHERE conn_id = ?').run(id)
   d.prepare('DELETE FROM table_tags WHERE conn_id = ?').run(id)
   d.prepare('DELETE FROM bookmarks WHERE conn_id = ?').run(id)
+  d.prepare('DELETE FROM table_descriptions WHERE conn_id = ?').run(id)
 }
 
 /** 连接参数变更（尤其是库表范围）后，旧缓存必须作废，否则树上仍是上一次的结果 */
@@ -282,4 +307,108 @@ export function createBookmark(b: Omit<Bookmark, 'id' | 'createdAt'>): Bookmark 
 
 export function deleteBookmark(id: number): void {
   getDb().prepare('DELETE FROM bookmarks WHERE id = ?').run(id)
+}
+
+// ---------- table descriptions ----------
+
+function rowToDescription(r: any): TableDescription {
+  return {
+    connId: r.conn_id,
+    schema: r.schema_name,
+    tableGroup: r.table_group,
+    purpose: r.purpose ?? '',
+    scenarios: r.scenarios ?? '',
+    content: r.content ?? '',
+    updatedAt: r.updated_at
+  }
+}
+
+export function listDescriptions(connId?: string): TableDescription[] {
+  const rows = (
+    connId
+      ? getDb().prepare('SELECT * FROM table_descriptions WHERE conn_id = ? ORDER BY schema_name, table_group').all(connId)
+      : getDb().prepare('SELECT * FROM table_descriptions ORDER BY conn_id, schema_name, table_group').all()
+  ) as any[]
+  return rows.map(rowToDescription)
+}
+
+export function getDescription(connId: string, schema: string, tableGroup: string): TableDescription | undefined {
+  const row = getDb()
+    .prepare('SELECT * FROM table_descriptions WHERE conn_id = ? AND schema_name = ? AND table_group = ?')
+    .get(connId, schema, tableGroup) as any
+  return row ? rowToDescription(row) : undefined
+}
+
+export function saveDescription(
+  connId: string,
+  schema: string,
+  tableGroup: string,
+  fields: { purpose: string; scenarios: string; content: string }
+): TableDescription {
+  const now = Date.now()
+  getDb()
+    .prepare(
+      `INSERT INTO table_descriptions (conn_id, schema_name, table_group, purpose, scenarios, content, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(conn_id, schema_name, table_group) DO UPDATE SET
+         purpose=excluded.purpose, scenarios=excluded.scenarios, content=excluded.content,
+         updated_at=excluded.updated_at`
+    )
+    .run(connId, schema, tableGroup, fields.purpose, fields.scenarios, fields.content, now)
+  return { connId, schema, tableGroup, ...fields, updatedAt: now }
+}
+
+export function deleteDescription(connId: string, schema: string, tableGroup: string): void {
+  getDb()
+    .prepare('DELETE FROM table_descriptions WHERE conn_id = ? AND schema_name = ? AND table_group = ?')
+    .run(connId, schema, tableGroup)
+}
+
+/** 某连接下已标注的「schema.table_group」集合，侧栏据此显示小标记 */
+export function listDescribedGroups(connId: string): string[] {
+  const rows = getDb()
+    .prepare('SELECT schema_name, table_group FROM table_descriptions WHERE conn_id = ?')
+    .all(connId) as any[]
+  return rows.map((r) => `${r.schema_name}.${r.table_group}`)
+}
+
+// ---------- app settings（MCP 配置） ----------
+
+export function getSetting(key: string): string | undefined {
+  const row = getDb().prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as { value: string } | undefined
+  return row?.value
+}
+
+/** 读取设置，不存在时用 factory 生成并落库（用于首次生成 token） */
+export function getOrCreateSetting(key: string, factory: () => string): string {
+  const existing = getSetting(key)
+  if (existing !== undefined) return existing
+  const value = factory()
+  getDb().prepare('INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)').run(key, value)
+  return getSetting(key) ?? value
+}
+
+export function setSetting(key: string, value: string): void {
+  getDb()
+    .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+    .run(key, value)
+}
+
+export const MCP_SETTINGS = {
+  enabled: 'mcp.enabled',
+  port: 'mcp.port',
+  token: 'mcp.token'
+} as const
+
+export function getMcpStatus(): McpStatus {
+  const enabled = getSetting(MCP_SETTINGS.enabled) !== 'false'
+  const port = Number(getOrCreateSetting(MCP_SETTINGS.port, () => '37812')) || 37812
+  const token = getOrCreateSetting(MCP_SETTINGS.token, () => randomUUID().replace(/-/g, ''))
+  return {
+    enabled,
+    port,
+    token,
+    sseUrl: `http://127.0.0.1:${port}/sse?token=${token}`,
+    streamableUrl: `http://127.0.0.1:${port}/mcp?token=${token}`
+  }
 }
