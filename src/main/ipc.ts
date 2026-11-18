@@ -87,6 +87,10 @@ export function registerIpcHandlers(): void {
       cm.fetchTableData(requireConn(connId), schema, table, page, pageSize, sort, filter)
   )
 
+  handle('table:count', (connId: string, schema: string, table: string, filter?: FilterSpec) =>
+    cm.fetchTableCount(requireConn(connId), schema, table, filter)
+  )
+
   handle('table:columns', (connId: string, schema: string, table: string) =>
     cm.fetchColumns(requireConn(connId), schema, table)
   )

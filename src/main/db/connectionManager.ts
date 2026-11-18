@@ -11,7 +11,7 @@ import type {
 } from '../../shared/types'
 import { quoteIdent } from './crud'
 import { matchesScope, parseScopeList } from '../../shared/scope'
-import { pickDefaultSort, shouldApplyDefaultSort } from '../../shared/defaultSort'
+import { pickDefaultSort, shouldApplyDefaultSort, DEFAULT_SORT_MAX_ROWS } from '../../shared/defaultSort'
 
 const SYSTEM_SCHEMAS = ['mysql', 'sys', 'information_schema', 'performance_schema']
 const pools = new Map<string, Pool>()
@@ -174,7 +174,48 @@ async function isLeadingIndexColumn(
   return (rows as unknown[]).length > 0
 }
 
+/**
+ * 用 LIMIT 1 OFFSET N 探测表的行数是否超过阈值：扫到第 N+1 行即可停，
+ * 比全表 COUNT(*) 快得多，也不依赖 information_schema.TABLE_ROWS 那种失真的估算值。
+ */
+async function tableExceedsRows(
+  config: ConnectionConfig,
+  qualified: string,
+  where: string,
+  params: unknown[],
+  threshold: number
+): Promise<boolean> {
+  const [rows] = await getPool(config).query(
+    `SELECT 1 FROM ${qualified} ${where} LIMIT 1 OFFSET ?`,
+    [...params, threshold]
+  )
+  return (rows as unknown[]).length > 0
+}
+
 // ---------- 表数据 ----------
+
+/**
+ * 只统计总行数，独立于数据查询，便于渲染层先出数据、后台再补总数。
+ * 与 fetchTableData 用同一套 where/filter 逻辑，保证筛选后行数一致。
+ */
+export async function fetchTableCount(
+  config: ConnectionConfig,
+  schema: string,
+  table: string,
+  filter?: FilterSpec
+): Promise<number> {
+  const params: unknown[] = []
+  let where = ''
+  if (filter && filter.value.trim() !== '') {
+    where = filter.op === 'like'
+      ? `WHERE ${quoteIdent(filter.column)} LIKE ?`
+      : `WHERE ${quoteIdent(filter.column)} = ?`
+    params.push(filter.op === 'like' ? `%${filter.value}%` : filter.value)
+  }
+  const qualified = `${quoteIdent(schema)}.${quoteIdent(table)}`
+  const [rows] = await getPool(config).query(`SELECT COUNT(*) AS cnt FROM ${qualified} ${where}`, params)
+  return Number((rows as any[])[0].cnt)
+}
 
 export async function fetchTableData(
   config: ConnectionConfig,
@@ -199,22 +240,22 @@ export async function fetchTableData(
   }
 
   const qualified = `${quoteIdent(schema)}.${quoteIdent(table)}`
-  const countSql = `SELECT COUNT(*) AS cnt FROM ${qualified} ${where}`
 
   // 用户主动排序：无条件照做；否则判断是否应用默认排序
   let appliedSort: SortSpec | null = sort ?? null
   let defaultSortNote: string | undefined
-  let preCount: number | undefined
   if (!sort) {
     const candidate = pickDefaultSort(columns)
     if (candidate) {
       const indexed = await isLeadingIndexColumn(config, schema, table, candidate.column)
-      // 无索引时才需要行数来判断；有索引时无需预先 COUNT，省一次查询
-      if (!indexed) preCount = Number(((await pool.query(countSql, params))[0] as any[])[0].cnt)
-      if (shouldApplyDefaultSort({ indexed, total: preCount ?? 0 })) {
+      // 无索引时用 LIMIT/OFFSET 精确探测是否超过阈值，不用失真的 TABLE_ROWS 估算
+      const exceeds = indexed
+        ? false
+        : await tableExceedsRows(config, qualified, where, params, DEFAULT_SORT_MAX_ROWS)
+      if (shouldApplyDefaultSort({ indexed, total: exceeds ? DEFAULT_SORT_MAX_ROWS + 1 : 0 })) {
         appliedSort = candidate
       } else {
-        defaultSortNote = `${candidate.column} 无索引且超过 10 万行，为避免全表排序已跳过默认排序`
+        defaultSortNote = `${candidate.column} 无索引且超过 ${DEFAULT_SORT_MAX_ROWS.toLocaleString()} 行，为避免全表排序已跳过默认排序`
       }
     }
   }
@@ -225,24 +266,16 @@ export async function fetchTableData(
       ? `ORDER BY ${pkColumns.map((c) => quoteIdent(c.name)).join(', ')}`
       : ''
 
-  // 数据与总数并行查询，缩短打开表的等待；预查过总数则直接复用
-  const countPromise =
-    preCount === undefined
-      ? pool.query(countSql, params)
-      : Promise.resolve([[{ cnt: preCount }]])
-  const [[rows], [countRows]] = await Promise.all([
-    pool.query(`SELECT * FROM ${qualified} ${where} ${orderBy} LIMIT ? OFFSET ?`, [
-      ...params,
-      pageSize,
-      (page - 1) * pageSize
-    ]),
-    countPromise
-  ])
+  // 只取数据页；总数由渲染层单独请求 table:count，避免被全表 COUNT 阻塞
+  const [rows] = await pool.query(
+    `SELECT * FROM ${qualified} ${where} ${orderBy} LIMIT ? OFFSET ?`,
+    [...params, pageSize, (page - 1) * pageSize]
+  )
 
   return {
     columns,
     rows: rows as Record<string, unknown>[],
-    total: Number((countRows as any[])[0].cnt),
+    total: page * pageSize,
     page,
     pageSize,
     readonly: pkColumns.length === 0,

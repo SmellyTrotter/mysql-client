@@ -82,7 +82,7 @@ npm run dist         # 打包 dmg（未签名）
 
 - SSH 隧道未实现（ConnectionInput 目前没有 ssh 字段，需要时加 ssh2 做跳板）
 - 筛选一次只支持一个字段（多条件 AND 需扩展 FilterSpec 为数组 + 面板 UI）
-- 百万行表 `COUNT(*)` 全表计数偏慢，可换 `information_schema.TABLES.TABLE_ROWS` 估算
+- 大表总行数 `COUNT(*)` 慢：已拆成独立 `table:count` 请求，数据页先渲染、总数后台补齐；`TABLE_ROWS` 估算值失真（曾把 3M 行表估成 10 万以下），不能用于默认排序判断，改用 `LIMIT 1 OFFSET N` 探测
 - 打包未做 Apple 签名/公证（分发需配 `electron-builder.yml` 的 identity + notarize）
 - SQL 编辑器无 schema 感知自动补全（CodeMirror `@codemirror/lang-sql` 可接 schema 配置）
 

@@ -122,6 +122,11 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
   const openDdl = useAppStore((s) => s.openDdl)
   const [data, setData] = useState<TableDataResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingTotal, setLoadingTotal] = useState(false)
+  /** 数据请求的竞态保护：只接受最新一次的结果 */
+  const dataSeq = useRef(0)
+  /** 总数请求的竞态保护：与数据请求独立，翻页/排序不重发总数 */
+  const countSeq = useRef(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(() => useAppStore.getState().tablePageSize)
   const [sort, setSort] = useState<SortSpec | undefined>()
@@ -182,16 +187,19 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
 
   const load = useCallback(async () => {
     if (!table) return
+    const seq = ++dataSeq.current
     setLoading(true)
     setError(null)
     try {
       // 只把用户手动排序交给主进程；默认排序由主进程按行数/索引判断
       const result = await api.table.data(connId, schema, table, page, pageSize, sort, appliedFilter)
+      if (seq !== dataSeq.current) return
       setData(result)
     } catch (err) {
+      if (seq !== dataSeq.current) return
       setError((err as Error).message)
     } finally {
-      setLoading(false)
+      if (seq === dataSeq.current) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connId, schema, table, page, pageSize, sort?.column, sort?.direction, appliedFilter])
@@ -199,6 +207,24 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
   useEffect(() => {
     void load()
   }, [load])
+
+  /** 总数独立请求：只在表或筛选变化时发，翻页/排序不重发，也不阻塞数据渲染 */
+  useEffect(() => {
+    if (!table) return
+    const seq = ++countSeq.current
+    setLoadingTotal(true)
+    api.table
+      .count(connId, schema, table, appliedFilter)
+      .then((total) => {
+        if (seq !== countSeq.current) return
+        setData((prev) => (prev ? { ...prev, total } : prev))
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (seq === countSeq.current) setLoadingTotal(false)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connId, schema, table, appliedFilter])
 
   function pkValues(row: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(pkColumns.map((c) => [c, row[c]]))
@@ -458,7 +484,14 @@ export default function DataGrid({ tab }: { tab: TabItem }) {
               </Typography.Text>
             </Tooltip>
           )}
-          共 {data?.total ?? '-'} 行 · 双击单元格编辑
+          {loadingTotal ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              统计行数中… ·{' '}
+            </Typography.Text>
+          ) : (
+            <>共 {data?.total ?? '-'} 行 · </>
+          )}
+          双击单元格编辑
         </span>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '0 12px 12px' }}>

@@ -43,6 +43,8 @@ const api = {
   table: {
     data: (connId: string, schema: string, table: string, page: number, pageSize: number, sort?: SortSpec, filter?: FilterSpec) =>
       invoke<TableDataResult>('table:data', connId, schema, table, page, pageSize, sort, filter),
+    count: (connId: string, schema: string, table: string, filter?: FilterSpec) =>
+      invoke<number>('table:count', connId, schema, table, filter),
     columns: (connId: string, schema: string, table: string) =>
       invoke<ColumnInfo[]>('table:columns', connId, schema, table),
     ddl: (connId: string, schema: string, table: string) => invoke<string>('table:ddl', connId, schema, table),

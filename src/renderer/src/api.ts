@@ -92,6 +92,7 @@ function createMockApi(): Api {
     table: {
       data: (_connId: string, _schema: string, _table: string, _page: number, _pageSize: number, sort?: SortSpec) =>
         Promise.resolve({ ...grid, appliedSort: sort ?? { column: 'create_time', direction: 'desc' } }),
+      count: () => Promise.resolve(100000),
       columns: () => Promise.resolve(grid.columns),
       ddl: () => Promise.resolve('CREATE TABLE `order_0` (\n  `id` bigint NOT NULL AUTO_INCREMENT,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB;'),
       update: () => Promise.resolve(1),
